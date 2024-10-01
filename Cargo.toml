@@ -1,0 +1,15 @@
+[package]
+name = "AutomaSploit"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+rustscan = "2.3.0"
+tokio = { version = "1.40.0", features =["full"]}
+nmap_xml_parser = "0.3.0"
+regex = "1"
+openai_api_rust = "=0.1.9"
+iocraft = "0.3.1"
+crossterm = "0.28.1"
+chrono = "0.4.38"
+smol = "2.0.2"
