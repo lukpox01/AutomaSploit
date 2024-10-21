@@ -54,15 +54,19 @@ fn main() -> Result<()> {
 fn perform_rustscan(target_ip: &IpAddr, specified_ports: &[u16]) -> Result<Vec<u16>> {
     println!("{}", "Starting RustScan...".blue());
     
-    let ports_str = if specified_ports.is_empty() {
-        "1-65535".to_string()
+    let ports_arg = if specified_ports.is_empty() {
+        "-p-".to_string()
     } else {
-        specified_ports.iter().map(|p| p.to_string()).collect::<Vec<String>>().join(",")
+        format!("-p {}", specified_ports.iter().map(|p| p.to_string()).collect::<Vec<String>>().join(","))
     };
     
-    let rustscan_command = format!("rustscan -a {} -p {} -b 500 -t 4000 --ulimit 5000", target_ip, ports_str);
+    let rustscan_command = format!("rustscan -a {} {} -b 500 -t 4000 --ulimit 5000", target_ip, ports_arg);
     
-    let estimated_duration = Duration::from_secs(30 + (specified_ports.len() as u64 * 2)); // Adjust based on typical RustScan duration
+    let estimated_duration = if specified_ports.is_empty() {
+        Duration::from_secs(120) // Estimate for full port scan
+    } else {
+        Duration::from_secs(30 + (specified_ports.len() as u64 * 2))
+    };
     let loading_thread = show_loading_animation("Performing RustScan", estimated_duration);
     
     let start_time = Instant::now();
@@ -82,10 +86,9 @@ fn perform_rustscan(target_ip: &IpAddr, specified_ports: &[u16]) -> Result<Vec<u
     let open_ports: Vec<u16> = rustscan_result
         .lines()
         .filter(|line| line.contains("Open"))
-        .map(|line| {
+        .filter_map(|line| {
             let parts: Vec<&str> = line.split_whitespace().collect();
-            let s:Vec<&str> = parts[1].split(':').collect();
-            s[1].parse::<u16>().unwrap()
+            parts.get(1).and_then(|s| s.split(':').nth(1)).and_then(|s| s.parse::<u16>().ok())
         })
         .collect();
 
