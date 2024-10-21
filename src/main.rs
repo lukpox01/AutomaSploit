@@ -25,13 +25,13 @@ struct Machine {
 fn main() -> Result<()> {
     println!("{}", "Starting AutomaSploit...".green().bold());
 
-    let machines = get_target_machines()?;
+    let targets = get_target_machines()?;
 
-    for machine in machines {
-        println!("\n{} {}", "Scanning machine:".cyan().bold(), machine.ip_address);
+    for (ip_address, specified_ports) in targets {
+        println!("\n{} {}", "Scanning machine:".cyan().bold(), ip_address);
         
         // Perform RustScan
-        let open_ports = perform_rustscan(&machine.ip_address, &machine.ports)?;
+        let open_ports = perform_rustscan(&ip_address, &specified_ports)?;
 
         if open_ports.is_empty() {
             println!("{}", "No open ports found.".yellow());
@@ -39,7 +39,7 @@ fn main() -> Result<()> {
         }
 
         // Perform Nmap scan on open ports
-        let ports = perform_nmap_scan(&machine.ip_address, &open_ports)?;
+        let ports = perform_nmap_scan(&ip_address, &open_ports)?;
 
         // Print results
         println!("\n{}", "Scan results:".cyan().bold());
@@ -173,8 +173,8 @@ fn show_loading_animation(message: &str, duration: Duration) -> thread::JoinHand
     })
 }
 
-fn get_target_machines() -> Result<Vec<Machine>> {
-    let mut machines = Vec::new();
+fn get_target_machines() -> Result<Vec<(IpAddr, Vec<u16>)>> {
+    let mut targets = Vec::new();
 
     loop {
         let ip_input: String = Input::with_theme(&ColorfulTheme::default())
@@ -195,14 +195,14 @@ fn get_target_machines() -> Result<Vec<Machine>> {
         };
 
         let ports = get_port_specification()?;
-        machines.push(Machine { ip_address, ports: Vec::new() });
+        targets.push((ip_address, ports));
     }
 
-    if machines.is_empty() {
+    if targets.is_empty() {
         return Err(anyhow!("No target machines specified"));
     }
 
-    Ok(machines)
+    Ok(targets)
 }
 
 fn get_port_specification() -> Result<Vec<u16>> {
