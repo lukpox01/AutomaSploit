@@ -79,6 +79,9 @@ fn perform_rustscan(target_ip: &IpAddr, specified_ports: &[u16]) -> Result<Vec<u
 
     let start_time = Instant::now();
 
+    let stop_signal = Arc::new(AtomicBool::new(false));
+    let animation_handle = show_loading_animation("RustScan in progress...", stop_signal.clone());
+
     let rustscan_output = Command::new("sh")
         .arg("-c")
         .arg(&rustscan_command)
@@ -90,6 +93,9 @@ fn perform_rustscan(target_ip: &IpAddr, specified_ports: &[u16]) -> Result<Vec<u
     let output = rustscan_output
         .wait_with_output()
         .map_err(|e| anyhow!("Failed to wait for RustScan: {}", e))?;
+
+    stop_signal.store(true, Ordering::Relaxed);
+    animation_handle.join().unwrap();
 
     let elapsed_time = start_time.elapsed();
     println!("{} {:.2?}", "RustScan completed in".blue(), elapsed_time);
@@ -140,6 +146,9 @@ fn perform_nmap_scan(target_ip: &IpAddr, open_ports: &[u16]) -> Result<Vec<Port>
 
     let start_time = Instant::now();
 
+    let stop_signal = Arc::new(AtomicBool::new(false));
+    let animation_handle = show_loading_animation("Nmap scan in progress...", stop_signal.clone());
+
     let nmap_output = Command::new("sh")
         .arg("-c")
         .arg(&nmap_command)
@@ -151,6 +160,9 @@ fn perform_nmap_scan(target_ip: &IpAddr, open_ports: &[u16]) -> Result<Vec<Port>
     let output = nmap_output
         .wait_with_output()
         .map_err(|e| anyhow!("Failed to wait for Nmap: {}", e))?;
+
+    stop_signal.store(true, Ordering::Relaxed);
+    animation_handle.join().unwrap();
 
     let elapsed_time = start_time.elapsed();
     println!("{} {:.2?}", "Nmap scan completed in".blue(), elapsed_time);
@@ -200,7 +212,10 @@ fn print_port(port: &Port) {
     println!("{}: {}", "Version".cyan().bold(), port.version.yellow());
 }
 
-fn show_loading_animation(message: &str, duration: Duration) -> thread::JoinHandle<()> {
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
+
+fn show_loading_animation(message: &str, stop_signal: Arc<AtomicBool>) -> thread::JoinHandle<()> {
     let pb = ProgressBar::new_spinner();
     pb.set_style(
         ProgressStyle::default_spinner()
@@ -212,8 +227,7 @@ fn show_loading_animation(message: &str, duration: Duration) -> thread::JoinHand
     let message = message.to_string(); // Clone the message
 
     thread::spawn(move || {
-        let start = Instant::now();
-        while start.elapsed() < duration {
+        while !stop_signal.load(Ordering::Relaxed) {
             pb.set_message(message.clone());
             pb.tick();
             thread::sleep(Duration::from_millis(100));
