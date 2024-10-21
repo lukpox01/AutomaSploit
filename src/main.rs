@@ -196,7 +196,8 @@ fn get_port_specification() -> Result<Vec<u16>> {
         .allow_empty(true)
         .interact_text()?;
 
-    if port_spec.is_empty() {
+    if port_spec.trim().is_empty() {
+        println!("No specific ports entered. Scanning all ports.");
         return Ok(Vec::new());
     }
 
@@ -207,11 +208,11 @@ fn get_port_specification() -> Result<Vec<u16>> {
             if range.len() != 2 {
                 return Err(anyhow!("Invalid port range specification"));
             }
-            let start: u16 = range[0].parse()?;
-            let end: u16 = range[1].parse()?;
+            let start: u16 = range[0].trim().parse()?;
+            let end: u16 = range[1].trim().parse()?;
             ports.extend(start..=end);
         } else {
-            ports.push(part.parse()?);
+            ports.push(part.trim().parse()?);
         }
     }
 
