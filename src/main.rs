@@ -1,5 +1,5 @@
 use anyhow::Result;
-use rustscan::Scanner;
+use rustscan::scanner::Scanner;
 use std::net::IpAddr;
 use std::process::Command;
 use std::str::FromStr;
