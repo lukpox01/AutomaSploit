@@ -154,10 +154,6 @@ fn show_loading_animation(message: &str, duration: Duration) -> thread::JoinHand
         .unwrap());
     pb.set_message(message.to_string());
 
-    let total_secs = duration.as_secs();
-    let initial_msg = format!("(Estimated time: {:02}:{:02})", total_secs / 60, total_secs % 60);
-    pb.set_message(initial_msg);
-
     thread::spawn(move || {
         let start = Instant::now();
         while start.elapsed() < duration {
