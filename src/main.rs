@@ -155,7 +155,7 @@ fn show_loading_animation(message: &str, duration: Duration) -> thread::JoinHand
     thread::spawn(move || {
         let start = Instant::now();
         while start.elapsed() < duration {
-            pb.set_message(&message);
+            pb.set_message(message.clone());
             pb.tick();
             thread::sleep(Duration::from_millis(100));
         }
