@@ -123,35 +123,50 @@ fn perform_nmap_scan(target_ip: &IpAddr, open_ports: &[u16]) -> Result<Vec<Port>
     let nmap_command = format!("nmap -T4 -sV -sC -p {} {}", ports, target_ip);
     println!("{} {}", "Executing Nmap command:".blue(), nmap_command);
 
-    let loading_thread = show_loading_animation("Performing Nmap scan", Duration::from_secs(3600)); // 1 hour timeout
-
     let start_time = Instant::now();
+    
     let nmap_output = Command::new("sh")
         .arg("-c")
         .arg(&nmap_command)
-        .output()?;
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|e| anyhow!("Failed to execute Nmap: {}", e))?;
+
+    let output = nmap_output.wait_with_output()
+        .map_err(|e| anyhow!("Failed to wait for Nmap: {}", e))?;
+
     let elapsed_time = start_time.elapsed();
-
-    loading_thread.join().unwrap();
-
     println!("{} {:.2?}", "Nmap scan completed in".blue(), elapsed_time);
 
+    if !output.status.success() {
+        let error_message = String::from_utf8_lossy(&output.stderr);
+        println!("Nmap stderr: {}", error_message);
+        return Err(anyhow!("Nmap failed: {}", error_message));
+    }
+
+    let nmap_result = String::from_utf8_lossy(&output.stdout);
+    println!("Nmap stdout: {}", nmap_result);
+
     let mut ports: Vec<Port> = Vec::new();
-    let nmap_result = String::from_utf8_lossy(&nmap_output.stdout);
     for line in nmap_result.lines() {
         if (line.contains("/tcp") || line.contains("/udp")) && line.contains("open") {
             let parts: Vec<&str> = line.split_whitespace().collect();
-            ports.push(Port {
-                number: parts[0].split('/').next().unwrap().parse::<u16>()?,
-                protocol: parts[0].split('/').last().unwrap().to_string(),
-                service: parts[2].to_string(),
-                version: parts[3..].join(" "),
-            });
+            if parts.len() >= 3 {
+                ports.push(Port {
+                    number: parts[0].split('/').next().unwrap().parse::<u16>()?,
+                    protocol: parts[0].split('/').last().unwrap().to_string(),
+                    service: parts[2].to_string(),
+                    version: parts.get(3..).unwrap_or(&[]).join(" "),
+                });
+            }
         }
     }
 
-    if !nmap_output.status.success() {
-        println!("{} {:?}", "Nmap command failed with exit code:".red(), nmap_output.status.code());
+    if ports.is_empty() {
+        println!("{}", "No open ports found by Nmap.".yellow());
+    } else {
+        println!("{} {:?}", "Open ports found by Nmap:".blue(), ports);
     }
 
     Ok(ports)
