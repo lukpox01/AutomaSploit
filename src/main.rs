@@ -161,23 +161,22 @@ fn get_target_machines() -> Result<Vec<Machine>> {
     let mut machines = Vec::new();
 
     loop {
-        let ip_address: IpAddr = Input::with_theme(&ColorfulTheme::default())
+        let ip_input: String = Input::with_theme(&ColorfulTheme::default())
             .with_prompt("Enter a target IP address (or leave empty to finish)")
             .allow_empty(true)
-            .validate_with(|input: &String| -> Result<(), String> {
-                if input.is_empty() {
-                    return Ok(());
-                }
-                match IpAddr::from_str(input) {
-                    Ok(_) => Ok(()),
-                    Err(_) => Err("Invalid IP address format. Please try again.".to_string()),
-                }
-            })
-            .interact_text().unwrap().parse()?;
+            .interact_text()?;
 
-        if ip_address.to_string().is_empty() {
+        if ip_input.is_empty() {
             break;
         }
+
+        let ip_address = match IpAddr::from_str(&ip_input) {
+            Ok(ip) => ip,
+            Err(_) => {
+                println!("{}", "Invalid IP address format. Please try again.".red());
+                continue;
+            }
+        };
 
         let ports = get_port_specification()?;
         machines.push(Machine { ip_address, ports: Vec::new() });
