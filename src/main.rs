@@ -8,6 +8,7 @@ struct Port {
     number: u16,
     service: String,
     version: String,
+    protocol: String,
 }
 
 fn main() -> Result<()> {
@@ -60,12 +61,21 @@ fn main() -> Result<()> {
         .arg(&nmap_command)
         .output()?;
 
+    
+    let mut ports: Vec<Port> = Vec::new();
     // Output Nmap results
     println!("Nmap scan results:");
     let nmap_result = String::from_utf8_lossy(&nmap_output.stdout);
     for line in nmap_result.lines() {
-        if line.contains("/tcp") && line.contains("open") {
-            println!("{}", line);
+        if (line.contains("/tcp") || line.contains("/udp")) && line.contains("open") {
+            let parts: Vec<&str> = line.split_whitespace().collect();
+            ports.push(Port {
+                number: parts[0].split('/').next().unwrap().parse::<u16>()?,
+                protocol: parts[0].split('/').last().unwrap().to_string(),
+                service: parts[2].to_string(),
+                version: parts[3..].join(" "),
+            });
+            println!("{:#?}", ports)
         }
     }
 
