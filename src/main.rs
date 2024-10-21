@@ -40,7 +40,7 @@ fn main() -> Result<()> {
     // Perform Nmap scan on open ports
     println!("Starting Nmap vulnerability scan...");
     let ports = open_ports.join(",");
-    let nmap_command = format!("nmap -p {} --script vuln {}", ports, target_ip);
+    let nmap_command = format!("nmap -p {} {}", ports, target_ip);
 
     let nmap_output = Command::new("sh")
         .arg("-c")
