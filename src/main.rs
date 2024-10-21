@@ -17,15 +17,16 @@ async fn main() -> Result<()> {
     // Perform RustScan
     println!("Starting RustScan...");
     let scanner = Scanner::new(
-        "127.0.0.1".parse().unwrap(), // target IP
-        1,                            // start port
-        65535,                        // end port
-        100,                          // rate
-        1000,                         // timeout
-        4,                            // retries
-        100,                          // delay
-        100,                          // max ports per second
-        false                         // verbose
+        "127.0.0.1".parse().unwrap(),           // target IP
+        1,                                      // start port
+        65535,                                  // end port
+        100,                                    // rate
+        std::time::Duration::from_millis(1000), // timeout
+        4,                                      // retries
+        std::time::Duration::from_millis(100),  // delay
+        rustscan::PortStrategy::Serial,         // port strategy
+        false,                                  // verbose
+        vec![]                                  // ports to scan (empty for all)
     );
     let rustscan_results = scanner.scan(&[target_ip]).await?;
 
