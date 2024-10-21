@@ -1,13 +1,9 @@
 use anyhow::Result;
-use rustscan::scanner::Scanner;
-use rustscan::port_strategy::{PortStrategy, SerialRange};
 use std::net::IpAddr;
 use std::process::Command;
 use std::str::FromStr;
-use std::time::Duration;
 
-#[tokio::main]
-async fn main() -> Result<()> {
+fn main() -> Result<()> {
     // Get the target IP address from command line arguments
     let args: Vec<String> = std::env::args().collect();
     if args.len() != 2 {
@@ -18,20 +14,20 @@ async fn main() -> Result<()> {
 
     // Perform RustScan
     println!("Starting RustScan...");
-    let scanner = Scanner::new(
-        target_ip,
-        16,
-        Duration::from_secs(1),     
-        3,
-        false,
-     
-    );
-    let rustscan_results = scanner.run().await;
+    let rustscan_command = format!("rustscan -a {} -b 500 -t 4000 --ulimit 5000", target_ip);
+    let rustscan_output = Command::new("sh")
+        .arg("-c")
+        .arg(&rustscan_command)
+        .output()?;
+
+    let rustscan_result = String::from_utf8_lossy(&rustscan_output.stdout);
+    println!("RustScan results:\n{}", rustscan_result);
 
     // Extract open ports from RustScan results
-    let open_ports: Vec<u16> = rustscan_results
-        .iter()
-        .flat_map(|result| result.open_ports.iter().map(|port| port.port))
+    let open_ports: Vec<&str> = rustscan_result
+        .lines()
+        .filter(|line| line.contains("Open"))
+        .flat_map(|line| line.split_whitespace().nth(0))
         .collect();
 
     if open_ports.is_empty() {
@@ -43,17 +39,17 @@ async fn main() -> Result<()> {
 
     // Perform Nmap scan on open ports
     println!("Starting Nmap vulnerability scan...");
-    let ports = open_ports.iter().map(|p| p.to_string()).collect::<Vec<String>>().join(",");
+    let ports = open_ports.join(",");
     let nmap_command = format!("nmap -p {} --script vuln {}", ports, target_ip);
 
-    let output = Command::new("sh")
+    let nmap_output = Command::new("sh")
         .arg("-c")
         .arg(&nmap_command)
         .output()?;
 
     // Print Nmap results
     println!("Nmap vulnerability scan results:");
-    println!("{}", String::from_utf8_lossy(&output.stdout));
+    println!("{}", String::from_utf8_lossy(&nmap_output.stdout));
 
     Ok(())
 }
