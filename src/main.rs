@@ -1,11 +1,11 @@
 use anyhow::Result;
-use clap::Parser;
 use colored::*;
 use std::net::IpAddr;
 use std::process::Command;
 use std::str::FromStr;
 use std::time::{Duration, Instant};
 use std::thread;
+use std::io::{self, Write};
 use indicatif::{ProgressBar, ProgressStyle};
 
 #[derive(Debug, Clone)]
@@ -16,19 +16,10 @@ struct Port {
     protocol: String,
 }
 
-#[derive(Parser, Debug)]
-#[command(author, version, about, long_about = None)]
-struct Args {
-    /// Target IP address
-    #[arg(short, long)]
-    target: String,
-}
-
 fn main() -> Result<()> {
-    let args = Args::parse();
-    let target_ip = IpAddr::from_str(&args.target)?;
-
     println!("{}", "Starting AutomaSploit...".green().bold());
+
+    let target_ip = get_target_ip()?;
 
     // Perform RustScan
     let open_ports = perform_rustscan(&target_ip)?;
@@ -150,4 +141,15 @@ fn show_loading_animation(message: &str, duration: Duration) -> thread::JoinHand
         }
         pb.finish_with_message("Done");
     })
+}
+
+fn get_target_ip() -> Result<IpAddr> {
+    print!("Enter the target IP address: ");
+    io::stdout().flush()?;
+
+    let mut input = String::new();
+    io::stdin().read_line(&mut input)?;
+
+    let target_ip = IpAddr::from_str(input.trim())?;
+    Ok(target_ip)
 }
