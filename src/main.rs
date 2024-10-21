@@ -1,7 +1,14 @@
-use anyhow::Result;
+use anyhow::{Result, anyhow};
 use std::net::IpAddr;
 use std::process::Command;
 use std::str::FromStr;
+
+#[derive(Debug)]
+struct Port {
+    number: u16,
+    service: String,
+    version: String,
+}
 
 fn main() -> Result<()> {
     // Get the target IP address from command line arguments
@@ -53,14 +60,54 @@ fn main() -> Result<()> {
         .arg(&nmap_command)
         .output()?;
 
-    // Print Nmap results
-    println!("Nmap vulnerability scan results:");
-    // println!("STDOUT:\n{}", String::from_utf8_lossy(&nmap_output.stdout));
-    // println!("STDERR:\n{}", String::from_utf8_lossy(&nmap_output.stderr));
+    // Parse Nmap results
+    println!("Parsing Nmap vulnerability scan results...");
+    let nmap_result = String::from_utf8_lossy(&nmap_output.stdout);
+    let ports = parse_nmap_output(&nmap_result)?;
+
+    // Print parsed results
+    println!("Parsed port information:");
+    for port in &ports {
+        println!("Port {}: {} ({})", port.number, port.service, port.version);
+    }
 
     if !nmap_output.status.success() {
         println!("Nmap command failed with exit code: {:?}", nmap_output.status.code());
     }
 
     Ok(())
+}
+
+fn parse_nmap_output(output: &str) -> Result<Vec<Port>> {
+    let mut ports = Vec::new();
+    let mut current_port = None;
+
+    for line in output.lines() {
+        if line.contains("/tcp") && line.contains("open") {
+            let parts: Vec<&str> = line.split_whitespace().collect();
+            if parts.len() >= 3 {
+                let port_number = parts[0].split('/').next().unwrap().parse::<u16>()?;
+                current_port = Some(Port {
+                    number: port_number,
+                    service: parts[2].to_string(),
+                    version: String::new(),
+                });
+            }
+        } else if line.contains("Version:") && current_port.is_some() {
+            if let Some(version_start) = line.find("Version:") {
+                let version = line[version_start + 8..].trim().to_string();
+                if let Some(port) = current_port.as_mut() {
+                    port.version = version;
+                    ports.push(port.clone());
+                    current_port = None;
+                }
+            }
+        }
+    }
+
+    if ports.is_empty() {
+        return Err(anyhow!("No port information found in Nmap output"));
+    }
+
+    Ok(ports)
 }
