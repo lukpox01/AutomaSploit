@@ -51,29 +51,45 @@ fn main() -> Result<()> {
     Ok(())
 }
 
+use std::time::Duration;
+use std::process::Stdio;
+
 fn perform_rustscan(target_ip: &IpAddr, specified_ports: &[u16]) -> Result<Vec<u16>> {
     println!("{}", "Starting RustScan...".blue());
     
     let ports_arg = if specified_ports.is_empty() {
-        "-p-".to_string()
+        "-p1-65535".to_string()
     } else {
         format!("-p {}", specified_ports.iter().map(|p| p.to_string()).collect::<Vec<String>>().join(","))
     };
     
-    let rustscan_command = format!("rustscan -a {} {} -b 500 -t 4000 --ulimit 5000", target_ip, ports_arg);
+    let rustscan_command = format!(
+        "rustscan -a {} {} -b 1000 -t 2000 --ulimit 5000 --timeout 5000 --tries 1 --scan-order random",
+        target_ip, ports_arg
+    );
     
-    let loading_thread = show_loading_animation("Performing RustScan", Duration::from_secs(3600)); // 1 hour timeout
+    println!("{} {}", "Executing RustScan command:".blue(), rustscan_command);
+    
+    let loading_thread = show_loading_animation("Performing RustScan", Duration::from_secs(300)); // 5 minutes timeout
     
     let start_time = Instant::now();
     let rustscan_output = Command::new("sh")
         .arg("-c")
         .arg(&rustscan_command)
-        .output()?;
-    let elapsed_time = start_time.elapsed();
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .output()
+        .map_err(|e| anyhow!("Failed to execute RustScan: {}", e))?;
 
+    let elapsed_time = start_time.elapsed();
     loading_thread.join().unwrap();
 
     println!("{} {:.2?}", "RustScan completed in".blue(), elapsed_time);
+
+    if !rustscan_output.status.success() {
+        let error_message = String::from_utf8_lossy(&rustscan_output.stderr);
+        return Err(anyhow!("RustScan failed: {}", error_message));
+    }
 
     let rustscan_result = String::from_utf8_lossy(&rustscan_output.stdout);
 
@@ -87,7 +103,12 @@ fn perform_rustscan(target_ip: &IpAddr, specified_ports: &[u16]) -> Result<Vec<u
         })
         .collect();
 
-    println!("{} {:?}", "Parsed open ports:".blue(), open_ports);
+    if open_ports.is_empty() {
+        println!("{}", "No open ports found by RustScan.".yellow());
+    } else {
+        println!("{} {:?}", "Open ports found by RustScan:".blue(), open_ports);
+    }
+
     Ok(open_ports)
 }
 
