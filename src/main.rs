@@ -21,6 +21,26 @@ fn main() -> Result<()> {
     let target_ip = IpAddr::from_str(&args[1])?;
 
     // Perform RustScan
+    let open_ports = perform_rustscan(&target_ip)?;
+
+    if open_ports.is_empty() {
+        println!("No open ports found.");
+        return Ok(());
+    }
+
+    // Perform Nmap scan on open ports
+    let ports = perform_nmap_scan(&target_ip, &open_ports)?;
+
+    // Print results
+    println!("Scan results:");
+    for port in ports {
+        println!("{:#?}", port);
+    }
+
+    Ok(())
+}
+
+fn perform_rustscan(target_ip: &IpAddr) -> Result<Vec<u16>> {
     println!("Starting RustScan...");
     let rustscan_command = format!("rustscan -a {} -b 500 -t 4000 --ulimit 5000", target_ip);
     let rustscan_output = Command::new("sh")
@@ -29,7 +49,6 @@ fn main() -> Result<()> {
         .output()?;
 
     let rustscan_result = String::from_utf8_lossy(&rustscan_output.stdout);
-    // println!("RustScan raw results:\n{}", rustscan_result);
 
     // Extract open ports from RustScan results
     let open_ports: Vec<u16> = rustscan_result
@@ -44,13 +63,10 @@ fn main() -> Result<()> {
         .collect();
 
     println!("Parsed open ports: {:?}", open_ports);
+    Ok(open_ports)
+}
 
-    if open_ports.is_empty() {
-        println!("No open ports found.");
-        return Ok(());
-    }
-
-    // Perform Nmap scan on open ports
+fn perform_nmap_scan(target_ip: &IpAddr, open_ports: &[u16]) -> Result<Vec<Port>> {
     println!("Starting Nmap vulnerability scan...");
     let ports = open_ports.iter().map(|p| p.to_string()).collect::<Vec<String>>().join(",");
     let nmap_command = format!("nmap -sV -sC -p {} {}", ports, target_ip);
@@ -61,10 +77,7 @@ fn main() -> Result<()> {
         .arg(&nmap_command)
         .output()?;
 
-    
     let mut ports: Vec<Port> = Vec::new();
-    // Output Nmap results
-    println!("Nmap scan results:");
     let nmap_result = String::from_utf8_lossy(&nmap_output.stdout);
     for line in nmap_result.lines() {
         if (line.contains("/tcp") || line.contains("/udp")) && line.contains("open") {
@@ -75,7 +88,6 @@ fn main() -> Result<()> {
                 service: parts[2].to_string(),
                 version: parts[3..].join(" "),
             });
-            println!("{:#?}", ports)
         }
     }
 
@@ -83,5 +95,5 @@ fn main() -> Result<()> {
         println!("Nmap command failed with exit code: {:?}", nmap_output.status.code());
     }
 
-    Ok(())
+    Ok(ports)
 }
