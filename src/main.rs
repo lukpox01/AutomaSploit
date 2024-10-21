@@ -31,7 +31,7 @@ fn main() -> Result<()> {
         println!("\n{} {}", "Scanning machine:".cyan().bold(), machine.ip_address);
         
         // Perform RustScan
-        let open_ports = perform_rustscan(&machine.ip_address)?;
+        let open_ports = perform_rustscan(&machine.ip_address, &machine.ports)?;
 
         if open_ports.is_empty() {
             println!("{}", "No open ports found.".yellow());
@@ -51,9 +51,16 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-fn perform_rustscan(target_ip: &IpAddr) -> Result<Vec<u16>> {
+fn perform_rustscan(target_ip: &IpAddr, specified_ports: &[u16]) -> Result<Vec<u16>> {
     println!("{}", "Starting RustScan...".blue());
-    let rustscan_command = format!("rustscan -a {} -b 500 -t 4000 --ulimit 5000", target_ip);
+    
+    let ports_str = if specified_ports.is_empty() {
+        "1-65535".to_string()
+    } else {
+        specified_ports.iter().map(|p| p.to_string()).collect::<Vec<String>>().join(",")
+    };
+    
+    let rustscan_command = format!("rustscan -a {} -p {} -b 500 -t 4000 --ulimit 5000", target_ip, ports_str);
     
     let estimated_duration = Duration::from_secs(30); // Adjust this based on typical RustScan duration
     let loading_thread = show_loading_animation("Performing RustScan", estimated_duration);
