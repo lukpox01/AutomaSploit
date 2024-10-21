@@ -21,16 +21,17 @@ fn main() -> Result<()> {
         .output()?;
 
     let rustscan_result = String::from_utf8_lossy(&rustscan_output.stdout);
-    println!("RustScan raw results:\n{}", rustscan_result);
+    // println!("RustScan raw results:\n{}", rustscan_result);
 
     // Extract open ports from RustScan results
     let open_ports: Vec<u16> = rustscan_result
         .lines()
         .filter(|line| line.contains("Open"))
         .inspect(|line| println!("Filtered line: {}", line))
-        .filter_map(|line| {
+        .map(|line| {
             let parts: Vec<&str> = line.split_whitespace().collect();
-            parts.get(1).and_then(|s| s.parse().ok())
+            let s:Vec<&str> = parts[1].split(':').collect();
+            s[1].parse::<u16>().unwrap()
         })
         .collect();
 
@@ -54,8 +55,8 @@ fn main() -> Result<()> {
 
     // Print Nmap results
     println!("Nmap vulnerability scan results:");
-    println!("STDOUT:\n{}", String::from_utf8_lossy(&nmap_output.stdout));
-    println!("STDERR:\n{}", String::from_utf8_lossy(&nmap_output.stderr));
+    // println!("STDOUT:\n{}", String::from_utf8_lossy(&nmap_output.stdout));
+    // println!("STDERR:\n{}", String::from_utf8_lossy(&nmap_output.stderr));
 
     if !nmap_output.status.success() {
         println!("Nmap command failed with exit code: {:?}", nmap_output.status.code());
