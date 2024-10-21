@@ -1,8 +1,10 @@
 use anyhow::Result;
 use rustscan::scanner::Scanner;
+use rustscan::port_strategy::{PortStrategy, SerialRange};
 use std::net::IpAddr;
 use std::process::Command;
 use std::str::FromStr;
+use std::time::Duration;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -17,18 +19,14 @@ async fn main() -> Result<()> {
     // Perform RustScan
     println!("Starting RustScan...");
     let scanner = Scanner::new(
-        "127.0.0.1".parse().unwrap(),           // target IP
-        1,                                      // start port
-        65535,                                  // end port
-        100,                                    // rate
-        std::time::Duration::from_millis(1000), // timeout
-        4,                                      // retries
-        std::time::Duration::from_millis(100),  // delay
-        rustscan::PortStrategy::Serial,         // port strategy
-        false,                                  // verbose
-        vec![]                                  // ports to scan (empty for all)
+        target_ip,
+        16,
+        Duration::from_secs(1),     
+        3,
+        false,
+     
     );
-    let rustscan_results = scanner.scan(&[target_ip]).await?;
+    let rustscan_results = scanner.run().await;
 
     // Extract open ports from RustScan results
     let open_ports: Vec<u16> = rustscan_results
