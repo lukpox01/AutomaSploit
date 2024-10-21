@@ -1,20 +1,12 @@
-use anyhow::{Result, anyhow};
-use clap::Parser;
+use anyhow::{anyhow, Result};
 use colored::*;
+use dialoguer::{theme::ColorfulTheme, Input, MultiSelect};
+use indicatif::{ProgressBar, ProgressStyle};
 use std::net::IpAddr;
 use std::process::Command;
 use std::str::FromStr;
-use std::time::{Duration, Instant};
 use std::thread;
-use indicatif::{ProgressBar, ProgressStyle};
-use dialoguer::{theme::ColorfulTheme, Input, MultiSelect};
-
-#[derive(Parser, Debug)]
-#[clap(author, version, about, long_about = None)]
-struct Args {
-    #[clap(short, long, help = "Greppable mode. Only output the ports. No Nmap.")]
-    greppable: bool,
-}
+use std::time::{Duration, Instant};
 
 #[derive(Debug, Clone)]
 struct Port {
@@ -31,40 +23,28 @@ struct Machine {
 }
 
 fn main() -> Result<()> {
-    let args = Args::parse();
-
-    if !args.greppable {
-        println!("{}", "Starting AutomaSploit...".green().bold());
-    }
+    println!("{}", "Starting AutomaSploit...".green().bold());
 
     let targets = get_target_machines()?;
 
     for (ip_address, specified_ports) in targets {
-        if !args.greppable {
-            println!("\n{} {}", "Scanning machine:".cyan().bold(), ip_address);
-        }
-        
+        println!("\n{} {}", "Scanning machine:".cyan().bold(), ip_address);
+
         // Perform RustScan
-        let open_ports = perform_rustscan(&ip_address, &specified_ports, args.greppable)?;
+        let open_ports = perform_rustscan(&ip_address, &specified_ports)?;
 
         if open_ports.is_empty() {
-            if !args.greppable {
-                println!("{}", "No open ports found.".yellow());
-            }
+            println!("{}", "No open ports found.".yellow());
             continue;
         }
 
-        if args.greppable {
-            print_greppable_results(&ip_address, &open_ports);
-        } else {
-            // Perform Nmap scan on open ports
-            let ports = perform_nmap_scan(&ip_address, &open_ports)?;
+        // Perform Nmap scan on open ports
+        let ports = perform_nmap_scan(&ip_address, &open_ports)?;
 
-            // Print results
-            println!("\n{}", "Scan results:".cyan().bold());
-            for port in ports {
-                print_port(&port);
-            }
+        // Print results
+        println!("\n{}", "Scan results:".cyan().bold());
+        for port in ports {
+            print_port(&port);
         }
     }
 
@@ -73,28 +53,32 @@ fn main() -> Result<()> {
 
 use std::process::Stdio;
 
-fn perform_rustscan(target_ip: &IpAddr, specified_ports: &[u16], greppable: bool) -> Result<Vec<u16>> {
-    if !greppable {
-        println!("{}", "Starting RustScan...".blue());
-    }
-    
+fn perform_rustscan(target_ip: &IpAddr, specified_ports: &[u16]) -> Result<Vec<u16>> {
+    println!("{}", "Starting RustScan...".blue());
+
     let ports_arg = if specified_ports.is_empty() {
         "".to_string()
     } else {
-        format!("-p {}", specified_ports.iter().map(|p| p.to_string()).collect::<Vec<String>>().join(","))
+        format!(
+            "-p {}",
+            specified_ports
+                .iter()
+                .map(|p| p.to_string())
+                .collect::<Vec<String>>()
+                .join(",")
+        )
     };
-    
-    let rustscan_command = format!(
-        "rustscan -a {} {}",
-        target_ip, ports_arg
+
+    let rustscan_command = format!("rustscan -a {} {} -g", target_ip, ports_arg);
+
+    println!(
+        "{} {}",
+        "Executing RustScan command:".blue(),
+        rustscan_command
     );
-    
-    if !greppable {
-        println!("{} {}", "Executing RustScan command:".blue(), rustscan_command);
-    }
-    
+
     let start_time = Instant::now();
-    
+
     let rustscan_output = Command::new("sh")
         .arg("-c")
         .arg(&rustscan_command)
@@ -103,43 +87,38 @@ fn perform_rustscan(target_ip: &IpAddr, specified_ports: &[u16], greppable: bool
         .spawn()
         .map_err(|e| anyhow!("Failed to execute RustScan: {}", e))?;
 
-    let output = rustscan_output.wait_with_output()
+    let output = rustscan_output
+        .wait_with_output()
         .map_err(|e| anyhow!("Failed to wait for RustScan: {}", e))?;
 
     let elapsed_time = start_time.elapsed();
-    if !greppable {
-        println!("{} {:.2?}", "RustScan completed in".blue(), elapsed_time);
-    }
+    println!("{} {:.2?}", "RustScan completed in".blue(), elapsed_time);
 
     if !output.status.success() {
         let error_message = String::from_utf8_lossy(&output.stderr);
-        if !greppable {
-            println!("RustScan stderr: {}", error_message);
-        }
+        println!("RustScan stderr: {}", error_message);
         return Err(anyhow!("RustScan failed: {}", error_message));
     }
 
     let rustscan_result = String::from_utf8_lossy(&output.stdout);
-    if !greppable {
-        println!("RustScan stdout: {}", rustscan_result);
-    }
+    // println!("RustScan stdout: {}", rustscan_result);
 
     // Extract open ports from RustScan results
-    let open_ports: Vec<u16> = rustscan_result
-        .lines()
-        .filter(|line| line.contains("Open"))
-        .filter_map(|line| {
-            let parts: Vec<&str> = line.split_whitespace().collect();
-            parts.get(1).and_then(|s| s.split(':').nth(1)).and_then(|s| s.parse::<u16>().ok())
-        })
+    let open_ports: Vec<u16> = rustscan_result.split(" -> ").collect::<Vec<&str>>()[1]
+        .replace(']', "")
+        .replace('[', "")
+        .split(',')
+        .map(|p| p.trim().parse::<u16>().unwrap())
         .collect();
 
-    if !greppable {
-        if open_ports.is_empty() {
-            println!("{}", "No open ports found by RustScan.".yellow());
-        } else {
-            println!("{} {:?}", "Open ports found by RustScan:".blue(), open_ports);
-        }
+    if open_ports.is_empty() {
+        println!("{}", "No open ports found by RustScan.".yellow());
+    } else {
+        println!(
+            "{} {:?}",
+            "Open ports found by RustScan:".cyan(),
+            open_ports
+        );
     }
 
     Ok(open_ports)
@@ -150,13 +129,17 @@ fn perform_nmap_scan(target_ip: &IpAddr, open_ports: &[u16]) -> Result<Vec<Port>
     let ports = if open_ports.is_empty() {
         "1-65535".to_string()
     } else {
-        open_ports.iter().map(|p| p.to_string()).collect::<Vec<String>>().join(",")
+        open_ports
+            .iter()
+            .map(|p| p.to_string())
+            .collect::<Vec<String>>()
+            .join(",")
     };
     let nmap_command = format!("nmap -T4 -sV -sC -p {} {}", ports, target_ip);
     println!("{} {}", "Executing Nmap command:".blue(), nmap_command);
 
     let start_time = Instant::now();
-    
+
     let nmap_output = Command::new("sh")
         .arg("-c")
         .arg(&nmap_command)
@@ -165,7 +148,8 @@ fn perform_nmap_scan(target_ip: &IpAddr, open_ports: &[u16]) -> Result<Vec<Port>
         .spawn()
         .map_err(|e| anyhow!("Failed to execute Nmap: {}", e))?;
 
-    let output = nmap_output.wait_with_output()
+    let output = nmap_output
+        .wait_with_output()
         .map_err(|e| anyhow!("Failed to wait for Nmap: {}", e))?;
 
     let elapsed_time = start_time.elapsed();
@@ -178,7 +162,7 @@ fn perform_nmap_scan(target_ip: &IpAddr, open_ports: &[u16]) -> Result<Vec<Port>
     }
 
     let nmap_result = String::from_utf8_lossy(&output.stdout);
-    println!("Nmap stdout: {}", nmap_result);
+    // println!("Nmap stdout: {}", nmap_result);
 
     let mut ports: Vec<Port> = Vec::new();
     for line in nmap_result.lines() {
@@ -206,7 +190,11 @@ fn perform_nmap_scan(target_ip: &IpAddr, open_ports: &[u16]) -> Result<Vec<Port>
 
 fn print_port(port: &Port) {
     println!("{}", "━".repeat(50).cyan());
-    println!("{}: {}", "Port".cyan().bold(), port.number.to_string().yellow());
+    println!(
+        "{}: {}",
+        "Port".cyan().bold(),
+        port.number.to_string().yellow()
+    );
     println!("{}: {}", "Protocol".cyan().bold(), port.protocol.yellow());
     println!("{}: {}", "Service".cyan().bold(), port.service.yellow());
     println!("{}: {}", "Version".cyan().bold(), port.version.yellow());
@@ -214,10 +202,12 @@ fn print_port(port: &Port) {
 
 fn show_loading_animation(message: &str, duration: Duration) -> thread::JoinHandle<()> {
     let pb = ProgressBar::new_spinner();
-    pb.set_style(ProgressStyle::default_spinner()
-        .tick_chars("⠁⠂⠄⡀⢀⠠⠐⠈ ")
-        .template("{spinner:.blue} {msg}")
-        .unwrap());
+    pb.set_style(
+        ProgressStyle::default_spinner()
+            .tick_chars("⠁⠂⠄⡀⢀⠠⠐⠈ ")
+            .template("{spinner:.blue} {msg}")
+            .unwrap(),
+    );
 
     let message = message.to_string(); // Clone the message
 
@@ -266,7 +256,9 @@ fn get_target_machines() -> Result<Vec<(IpAddr, Vec<u16>)>> {
 
 fn get_port_specification() -> Result<Vec<u16>> {
     let port_spec: String = Input::with_theme(&ColorfulTheme::default())
-        .with_prompt("Enter port specification (e.g., '80,443,8000-8100' or leave empty for all ports)")
+        .with_prompt(
+            "Enter port specification (e.g., '80,443,8000-8100' or leave empty for all ports)",
+        )
         .allow_empty(true)
         .interact_text()?;
 
@@ -291,9 +283,4 @@ fn get_port_specification() -> Result<Vec<u16>> {
     }
 
     Ok(ports)
-}
-fn print_greppable_results(ip_address: &IpAddr, open_ports: &[u16]) {
-    for port in open_ports {
-        println!("{}:{}", ip_address, port);
-    }
 }
