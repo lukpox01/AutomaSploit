@@ -150,18 +150,13 @@ fn show_loading_animation(message: &str, duration: Duration) -> thread::JoinHand
     let pb = ProgressBar::new_spinner();
     pb.set_style(ProgressStyle::default_spinner()
         .tick_chars("⠁⠂⠄⡀⢀⠠⠐⠈ ")
-        .template("{spinner:.blue} {msg} {wide_msg}")
+        .template("{spinner:.blue} {msg}")
         .unwrap());
-    pb.set_message(message.to_string());
+    pb.set_message(format!("{} (Estimated time: {:02}:{:02})", message, duration.as_secs() / 60, duration.as_secs() % 60));
 
     thread::spawn(move || {
         let start = Instant::now();
         while start.elapsed() < duration {
-            let elapsed = start.elapsed();
-            let remaining = if duration > elapsed { duration - elapsed } else { Duration::from_secs(0) };
-            let mins = remaining.as_secs() / 60;
-            let secs = remaining.as_secs() % 60;
-            pb.set_message(format!("(Estimated time remaining: {:02}:{:02})", mins, secs));
             pb.tick();
             thread::sleep(Duration::from_millis(100));
         }
