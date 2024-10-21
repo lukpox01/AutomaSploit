@@ -1,9 +1,11 @@
-use anyhow::{Result, anyhow};
+use anyhow::Result;
+use clap::Parser;
+use colored::*;
 use std::net::IpAddr;
 use std::process::Command;
 use std::str::FromStr;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct Port {
     number: u16,
     service: String,
@@ -11,20 +13,25 @@ struct Port {
     protocol: String,
 }
 
+#[derive(Parser, Debug)]
+#[command(author, version, about, long_about = None)]
+struct Args {
+    /// Target IP address
+    #[arg(short, long)]
+    target: String,
+}
+
 fn main() -> Result<()> {
-    // Get the target IP address from command line arguments
-    let args: Vec<String> = std::env::args().collect();
-    if args.len() != 2 {
-        eprintln!("Usage: {} <target_ip>", args[0]);
-        std::process::exit(1);
-    }
-    let target_ip = IpAddr::from_str(&args[1])?;
+    let args = Args::parse();
+    let target_ip = IpAddr::from_str(&args.target)?;
+
+    println!("{}", "Starting AutomaSploit...".green().bold());
 
     // Perform RustScan
     let open_ports = perform_rustscan(&target_ip)?;
 
     if open_ports.is_empty() {
-        println!("No open ports found.");
+        println!("{}", "No open ports found.".yellow());
         return Ok(());
     }
 
@@ -32,16 +39,16 @@ fn main() -> Result<()> {
     let ports = perform_nmap_scan(&target_ip, &open_ports)?;
 
     // Print results
-    println!("Scan results:");
+    println!("\n{}", "Scan results:".cyan().bold());
     for port in ports {
-        println!("{:#?}", port);
+        print_port(&port);
     }
 
     Ok(())
 }
 
 fn perform_rustscan(target_ip: &IpAddr) -> Result<Vec<u16>> {
-    println!("Starting RustScan...");
+    println!("{}", "Starting RustScan...".blue());
     let rustscan_command = format!("rustscan -a {} -b 500 -t 4000 --ulimit 5000", target_ip);
     let rustscan_output = Command::new("sh")
         .arg("-c")
@@ -61,15 +68,15 @@ fn perform_rustscan(target_ip: &IpAddr) -> Result<Vec<u16>> {
         })
         .collect();
 
-    println!("Parsed open ports: {:?}", open_ports);
+    println!("{} {:?}", "Parsed open ports:".blue(), open_ports);
     Ok(open_ports)
 }
 
 fn perform_nmap_scan(target_ip: &IpAddr, open_ports: &[u16]) -> Result<Vec<Port>> {
-    println!("Starting Nmap vulnerability scan...");
+    println!("{}", "Starting Nmap vulnerability scan...".blue());
     let ports = open_ports.iter().map(|p| p.to_string()).collect::<Vec<String>>().join(",");
     let nmap_command = format!("nmap -sV -sC -p {} {}", ports, target_ip);
-    println!("Executing Nmap command: {}", nmap_command);
+    println!("{} {}", "Executing Nmap command:".blue(), nmap_command);
 
     let nmap_output = Command::new("sh")
         .arg("-c")
@@ -91,8 +98,16 @@ fn perform_nmap_scan(target_ip: &IpAddr, open_ports: &[u16]) -> Result<Vec<Port>
     }
 
     if !nmap_output.status.success() {
-        println!("Nmap command failed with exit code: {:?}", nmap_output.status.code());
+        println!("{} {:?}", "Nmap command failed with exit code:".red(), nmap_output.status.code());
     }
 
     Ok(ports)
+}
+
+fn print_port(port: &Port) {
+    println!("{}", "━".repeat(50).cyan());
+    println!("{}: {}", "Port".cyan().bold(), port.number.to_string().yellow());
+    println!("{}: {}", "Protocol".cyan().bold(), port.protocol.yellow());
+    println!("{}: {}", "Service".cyan().bold(), port.service.yellow());
+    println!("{}: {}", "Version".cyan().bold(), port.version.yellow());
 }
