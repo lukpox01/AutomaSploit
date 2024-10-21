@@ -79,6 +79,8 @@ fn perform_rustscan(target_ip: &IpAddr, specified_ports: &[u16]) -> Result<Vec<u
 
     let start_time = Instant::now();
 
+    let loading_handle = show_loading_animation("RustScan in progress", Duration::from_secs(3600));
+
     let rustscan_output = Command::new("sh")
         .arg("-c")
         .arg(&rustscan_command)
@@ -90,6 +92,8 @@ fn perform_rustscan(target_ip: &IpAddr, specified_ports: &[u16]) -> Result<Vec<u
     let output = rustscan_output
         .wait_with_output()
         .map_err(|e| anyhow!("Failed to wait for RustScan: {}", e))?;
+
+    loading_handle.join().unwrap();
 
     let elapsed_time = start_time.elapsed();
     println!("{} {:.2?}", "RustScan completed in".blue(), elapsed_time);
@@ -140,6 +144,8 @@ fn perform_nmap_scan(target_ip: &IpAddr, open_ports: &[u16]) -> Result<Vec<Port>
 
     let start_time = Instant::now();
 
+    let loading_handle = show_loading_animation("Nmap scan in progress", Duration::from_secs(3600));
+
     let nmap_output = Command::new("sh")
         .arg("-c")
         .arg(&nmap_command)
@@ -151,6 +157,8 @@ fn perform_nmap_scan(target_ip: &IpAddr, open_ports: &[u16]) -> Result<Vec<Port>
     let output = nmap_output
         .wait_with_output()
         .map_err(|e| anyhow!("Failed to wait for Nmap: {}", e))?;
+
+    loading_handle.join().unwrap();
 
     let elapsed_time = start_time.elapsed();
     println!("{} {:.2?}", "Nmap scan completed in".blue(), elapsed_time);
