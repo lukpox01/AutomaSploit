@@ -152,11 +152,13 @@ fn show_loading_animation(message: &str, duration: Duration) -> thread::JoinHand
         .tick_chars("⠁⠂⠄⡀⢀⠠⠐⠈ ")
         .template("{spinner:.blue} {msg}")
         .unwrap());
-    pb.set_message(format!("{} (Estimated time: {:02}:{:02})", message, duration.as_secs() / 60, duration.as_secs() % 60));
 
     thread::spawn(move || {
         let start = Instant::now();
         while start.elapsed() < duration {
+            let remaining = duration.saturating_sub(start.elapsed());
+            pb.set_message(format!("{} (Estimated time remaining: {:02}:{:02})", 
+                message, remaining.as_secs() / 60, remaining.as_secs() % 60));
             pb.tick();
             thread::sleep(Duration::from_millis(100));
         }
