@@ -3,7 +3,7 @@ use std::net::IpAddr;
 use std::process::Command;
 use std::str::FromStr;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct Port {
     number: u16,
     service: String,
