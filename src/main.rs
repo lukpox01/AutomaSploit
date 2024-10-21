@@ -1,7 +1,7 @@
 use anyhow::Result;
 use rustscan::Scanner;
-use nmap::Nmap;
 use std::net::IpAddr;
+use std::process::Command;
 use std::str::FromStr;
 
 #[tokio::main]
@@ -34,18 +34,17 @@ async fn main() -> Result<()> {
 
     // Perform Nmap scan on open ports
     println!("Starting Nmap vulnerability scan...");
-    let mut nmap = Nmap::new();
-    nmap.add_target(&target_ip.to_string());
-    for port in open_ports {
-        nmap.add_port(port);
-    }
-    nmap.script("vuln");
+    let ports = open_ports.iter().map(|p| p.to_string()).collect::<Vec<String>>().join(",");
+    let nmap_command = format!("nmap -p {} --script vuln {}", ports, target_ip);
 
-    let nmap_results = nmap.run()?;
+    let output = Command::new("sh")
+        .arg("-c")
+        .arg(&nmap_command)
+        .output()?;
 
     // Print Nmap results
     println!("Nmap vulnerability scan results:");
-    println!("{}", nmap_results);
+    println!("{}", String::from_utf8_lossy(&output.stdout));
 
     Ok(())
 }
