@@ -93,7 +93,7 @@ fn perform_nmap_scan(target_ip: &IpAddr, open_ports: &[u16]) -> Result<Vec<Port>
     } else {
         open_ports.iter().map(|p| p.to_string()).collect::<Vec<String>>().join(",")
     };
-    let nmap_command = format!("nmap -sV -sC -p {} {}", ports, target_ip);
+    let nmap_command = format!("nmap -T4 -sV -sC -p {} {}", ports, target_ip);
     println!("{} {}", "Executing Nmap command:".blue(), nmap_command);
 
     let estimated_duration = Duration::from_secs(60 * open_ports.len().max(1) as u64); // Rough estimate: 1 minute per port, minimum 1 minute
