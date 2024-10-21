@@ -153,6 +153,8 @@ fn show_loading_animation(message: &str, duration: Duration) -> thread::JoinHand
         .template("{spinner:.blue} {msg}")
         .unwrap());
 
+    let message = message.to_string(); // Clone the message
+
     thread::spawn(move || {
         let start = Instant::now();
         while start.elapsed() < duration {
