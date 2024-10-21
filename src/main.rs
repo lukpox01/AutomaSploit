@@ -173,7 +173,7 @@ fn get_target_machines() -> Result<Vec<Machine>> {
                     Err(_) => Err("Invalid IP address format. Please try again.".to_string()),
                 }
             })
-            .interact_text()?;
+            .interact_text().unwrap().parse()?;
 
         if ip_address.to_string().is_empty() {
             break;
