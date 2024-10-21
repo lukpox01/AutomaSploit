@@ -30,16 +30,13 @@ fn main() -> Result<()> {
     for (ip_address, specified_ports) in targets {
         println!("\n{} {}", "Scanning machine:".cyan().bold(), ip_address);
         
-        // Perform RustScan
-        let open_ports = perform_rustscan(&ip_address, &specified_ports)?;
+        // Perform Nmap scan
+        let ports = perform_nmap_scan(&ip_address, &specified_ports)?;
 
-        if open_ports.is_empty() {
+        if ports.is_empty() {
             println!("{}", "No open ports found.".yellow());
             continue;
         }
-
-        // Perform Nmap scan on open ports
-        let ports = perform_nmap_scan(&ip_address, &open_ports)?;
 
         // Print results
         println!("\n{}", "Scan results:".cyan().bold());
@@ -113,12 +110,12 @@ fn perform_rustscan(target_ip: &IpAddr, specified_ports: &[u16]) -> Result<Vec<u
     Ok(open_ports)
 }
 
-fn perform_nmap_scan(target_ip: &IpAddr, open_ports: &[u16]) -> Result<Vec<Port>> {
+fn perform_nmap_scan(target_ip: &IpAddr, specified_ports: &[u16]) -> Result<Vec<Port>> {
     println!("{}", "Starting Nmap vulnerability scan...".blue());
-    let ports = if open_ports.is_empty() {
+    let ports = if specified_ports.is_empty() {
         "1-65535".to_string()
     } else {
-        open_ports.iter().map(|p| p.to_string()).collect::<Vec<String>>().join(",")
+        specified_ports.iter().map(|p| p.to_string()).collect::<Vec<String>>().join(",")
     };
     let nmap_command = format!("nmap -T4 -sV -sC -p {} {}", ports, target_ip);
     println!("{} {}", "Executing Nmap command:".blue(), nmap_command);
