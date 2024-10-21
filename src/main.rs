@@ -51,7 +51,6 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-use std::time::Duration;
 use std::process::Stdio;
 
 fn perform_rustscan(target_ip: &IpAddr, specified_ports: &[u16]) -> Result<Vec<u16>> {
@@ -64,7 +63,7 @@ fn perform_rustscan(target_ip: &IpAddr, specified_ports: &[u16]) -> Result<Vec<u
     };
     
     let rustscan_command = format!(
-        "rustscan -a {} {} -b 1000 -t 2000 --ulimit 5000 --timeout 5000 --tries 1 --scan-order random",
+        "rustscan -a {} {}",
         target_ip, ports_arg
     );
     
@@ -76,8 +75,7 @@ fn perform_rustscan(target_ip: &IpAddr, specified_ports: &[u16]) -> Result<Vec<u
     let rustscan_output = Command::new("sh")
         .arg("-c")
         .arg(&rustscan_command)
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
+
         .output()
         .map_err(|e| anyhow!("Failed to execute RustScan: {}", e))?;
 
