@@ -5,8 +5,8 @@ use std::process::Command;
 use std::str::FromStr;
 use std::time::{Duration, Instant};
 use std::thread;
-use std::io::{self, Write};
 use indicatif::{ProgressBar, ProgressStyle};
+use dialoguer::{theme::ColorfulTheme, Input};
 
 #[derive(Debug, Clone)]
 struct Port {
@@ -144,12 +144,15 @@ fn show_loading_animation(message: &str, duration: Duration) -> thread::JoinHand
 }
 
 fn get_target_ip() -> Result<IpAddr> {
-    print!("Enter the target IP address: ");
-    io::stdout().flush()?;
+    let target_ip: IpAddr = Input::with_theme(&ColorfulTheme::default())
+        .with_prompt("Enter the target IP address")
+        .validate_with(|input: &String| -> Result<(), String> {
+            match IpAddr::from_str(input) {
+                Ok(_) => Ok(()),
+                Err(_) => Err("Invalid IP address format. Please try again.".to_string()),
+            }
+        })
+        .interact_text()?;
 
-    let mut input = String::new();
-    io::stdin().read_line(&mut input)?;
-
-    let target_ip = IpAddr::from_str(input.trim())?;
     Ok(target_ip)
 }
