@@ -3,7 +3,7 @@ use std::net::IpAddr;
 use std::process::Command;
 use std::str::FromStr;
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 struct Port {
     number: u16,
     service: String,
@@ -54,7 +54,6 @@ fn perform_rustscan(target_ip: &IpAddr) -> Result<Vec<u16>> {
     let open_ports: Vec<u16> = rustscan_result
         .lines()
         .filter(|line| line.contains("Open"))
-        .inspect(|line| println!("Filtered line: {}", line))
         .map(|line| {
             let parts: Vec<&str> = line.split_whitespace().collect();
             let s:Vec<&str> = parts[1].split(':').collect();
