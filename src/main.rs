@@ -57,13 +57,13 @@ fn perform_rustscan(target_ip: &IpAddr, specified_ports: &[u16]) -> Result<Vec<u
     println!("{}", "Starting RustScan...".blue());
     
     let ports_arg = if specified_ports.is_empty() {
-        "-p-".to_string()
+        "".to_string()
     } else {
         format!("-p {}", specified_ports.iter().map(|p| p.to_string()).collect::<Vec<String>>().join(","))
     };
     
     let rustscan_command = format!(
-        "rustscan -a {} {} --batch-size 5000 --timeout 1000 --scan-order random --tries 1 --rate 5000",
+        "rustscan -a {} {}",
         target_ip, ports_arg
     );
     
