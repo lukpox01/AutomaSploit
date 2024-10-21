@@ -69,26 +69,30 @@ fn perform_rustscan(target_ip: &IpAddr, specified_ports: &[u16]) -> Result<Vec<u
     
     println!("{} {}", "Executing RustScan command:".blue(), rustscan_command);
     
-    let loading_thread = show_loading_animation("Performing RustScan", Duration::from_secs(60)); // 1 minute timeout
-    
     let start_time = Instant::now();
+    
     let rustscan_output = Command::new("sh")
         .arg("-c")
         .arg(&rustscan_command)
-        .output()
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
         .map_err(|e| anyhow!("Failed to execute RustScan: {}", e))?;
 
-    let elapsed_time = start_time.elapsed();
-    loading_thread.join().unwrap();
+    let output = rustscan_output.wait_with_output()
+        .map_err(|e| anyhow!("Failed to wait for RustScan: {}", e))?;
 
+    let elapsed_time = start_time.elapsed();
     println!("{} {:.2?}", "RustScan completed in".blue(), elapsed_time);
 
-    if !rustscan_output.status.success() {
-        let error_message = String::from_utf8_lossy(&rustscan_output.stderr);
+    if !output.status.success() {
+        let error_message = String::from_utf8_lossy(&output.stderr);
+        println!("RustScan stderr: {}", error_message);
         return Err(anyhow!("RustScan failed: {}", error_message));
     }
 
-    let rustscan_result = String::from_utf8_lossy(&rustscan_output.stdout);
+    let rustscan_result = String::from_utf8_lossy(&output.stdout);
+    println!("RustScan stdout: {}", rustscan_result);
 
     // Extract open ports from RustScan results
     let open_ports: Vec<u16> = rustscan_result
