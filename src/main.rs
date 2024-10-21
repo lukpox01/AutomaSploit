@@ -62,7 +62,7 @@ fn perform_rustscan(target_ip: &IpAddr, specified_ports: &[u16]) -> Result<Vec<u
     
     let rustscan_command = format!("rustscan -a {} -p {} -b 500 -t 4000 --ulimit 5000", target_ip, ports_str);
     
-    let estimated_duration = Duration::from_secs(30); // Adjust this based on typical RustScan duration
+    let estimated_duration = Duration::from_secs(30 + (specified_ports.len() as u64 * 2)); // Adjust based on typical RustScan duration
     let loading_thread = show_loading_animation("Performing RustScan", estimated_duration);
     
     let start_time = Instant::now();
@@ -103,7 +103,7 @@ fn perform_nmap_scan(target_ip: &IpAddr, open_ports: &[u16]) -> Result<Vec<Port>
     let nmap_command = format!("nmap -T4 -sV -sC -p {} {}", ports, target_ip);
     println!("{} {}", "Executing Nmap command:".blue(), nmap_command);
 
-    let estimated_duration = Duration::from_secs(60 * open_ports.len().max(1) as u64); // Rough estimate: 1 minute per port, minimum 1 minute
+    let estimated_duration = Duration::from_secs(30 + (open_ports.len() as u64 * 60)); // Base 30 seconds + 1 minute per port
     let loading_thread = show_loading_animation("Performing Nmap scan", estimated_duration);
 
     let start_time = Instant::now();
@@ -150,13 +150,22 @@ fn show_loading_animation(message: &str, duration: Duration) -> thread::JoinHand
     let pb = ProgressBar::new_spinner();
     pb.set_style(ProgressStyle::default_spinner()
         .tick_chars("⠁⠂⠄⡀⢀⠠⠐⠈ ")
-        .template("{spinner:.blue} {msg}")
+        .template("{spinner:.blue} {msg} {wide_msg}")
         .unwrap());
     pb.set_message(message.to_string());
+
+    let total_secs = duration.as_secs();
+    let initial_msg = format!("(Estimated time: {:02}:{:02})", total_secs / 60, total_secs % 60);
+    pb.set_message(initial_msg);
 
     thread::spawn(move || {
         let start = Instant::now();
         while start.elapsed() < duration {
+            let elapsed = start.elapsed();
+            let remaining = if duration > elapsed { duration - elapsed } else { Duration::from_secs(0) };
+            let mins = remaining.as_secs() / 60;
+            let secs = remaining.as_secs() % 60;
+            pb.set_message(format!("(Estimated time remaining: {:02}:{:02})", mins, secs));
             pb.tick();
             thread::sleep(Duration::from_millis(100));
         }
