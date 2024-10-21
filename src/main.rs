@@ -57,19 +57,19 @@ fn perform_rustscan(target_ip: &IpAddr, specified_ports: &[u16]) -> Result<Vec<u
     println!("{}", "Starting RustScan...".blue());
     
     let ports_arg = if specified_ports.is_empty() {
-        "-p1-65535".to_string()
+        "-p-".to_string()
     } else {
         format!("-p {}", specified_ports.iter().map(|p| p.to_string()).collect::<Vec<String>>().join(","))
     };
     
     let rustscan_command = format!(
-        "rustscan -a {} {} --batch-size 2500 --timeout 2000 --scan-order random --tries 1",
+        "rustscan -a {} {} --batch-size 5000 --timeout 1000 --scan-order random --tries 1 --rate 5000",
         target_ip, ports_arg
     );
     
     println!("{} {}", "Executing RustScan command:".blue(), rustscan_command);
     
-    let loading_thread = show_loading_animation("Performing RustScan", Duration::from_secs(120)); // 2 minutes timeout
+    let loading_thread = show_loading_animation("Performing RustScan", Duration::from_secs(60)); // 1 minute timeout
     
     let start_time = Instant::now();
     let rustscan_output = Command::new("sh")
