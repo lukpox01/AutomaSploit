@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{Result, anyhow};
 use colored::*;
 use std::net::IpAddr;
 use std::process::Command;
@@ -6,7 +6,7 @@ use std::str::FromStr;
 use std::time::{Duration, Instant};
 use std::thread;
 use indicatif::{ProgressBar, ProgressStyle};
-use dialoguer::{theme::ColorfulTheme, Input};
+use dialoguer::{theme::ColorfulTheme, Input, MultiSelect};
 
 #[derive(Debug, Clone)]
 struct Port {
@@ -16,26 +16,36 @@ struct Port {
     protocol: String,
 }
 
+#[derive(Debug, Clone)]
+struct Machine {
+    ip_address: IpAddr,
+    ports: Vec<Port>,
+}
+
 fn main() -> Result<()> {
     println!("{}", "Starting AutomaSploit...".green().bold());
 
-    let target_ip = get_target_ip()?;
+    let machines = get_target_machines()?;
 
-    // Perform RustScan
-    let open_ports = perform_rustscan(&target_ip)?;
+    for machine in machines {
+        println!("\n{} {}", "Scanning machine:".cyan().bold(), machine.ip_address);
+        
+        // Perform RustScan
+        let open_ports = perform_rustscan(&machine.ip_address)?;
 
-    if open_ports.is_empty() {
-        println!("{}", "No open ports found.".yellow());
-        return Ok(());
-    }
+        if open_ports.is_empty() {
+            println!("{}", "No open ports found.".yellow());
+            continue;
+        }
 
-    // Perform Nmap scan on open ports
-    let ports = perform_nmap_scan(&target_ip, &open_ports)?;
+        // Perform Nmap scan on open ports
+        let ports = perform_nmap_scan(&machine.ip_address, &open_ports)?;
 
-    // Print results
-    println!("\n{}", "Scan results:".cyan().bold());
-    for port in ports {
-        print_port(&port);
+        // Print results
+        println!("\n{}", "Scan results:".cyan().bold());
+        for port in ports {
+            print_port(&port);
+        }
     }
 
     Ok(())
@@ -78,11 +88,15 @@ fn perform_rustscan(target_ip: &IpAddr) -> Result<Vec<u16>> {
 
 fn perform_nmap_scan(target_ip: &IpAddr, open_ports: &[u16]) -> Result<Vec<Port>> {
     println!("{}", "Starting Nmap vulnerability scan...".blue());
-    let ports = open_ports.iter().map(|p| p.to_string()).collect::<Vec<String>>().join(",");
+    let ports = if open_ports.is_empty() {
+        "1-65535".to_string()
+    } else {
+        open_ports.iter().map(|p| p.to_string()).collect::<Vec<String>>().join(",")
+    };
     let nmap_command = format!("nmap -sV -sC -p {} {}", ports, target_ip);
     println!("{} {}", "Executing Nmap command:".blue(), nmap_command);
 
-    let estimated_duration = Duration::from_secs(60 * open_ports.len() as u64); // Rough estimate: 1 minute per port
+    let estimated_duration = Duration::from_secs(60 * open_ports.len().max(1) as u64); // Rough estimate: 1 minute per port, minimum 1 minute
     let loading_thread = show_loading_animation("Performing Nmap scan", estimated_duration);
 
     let start_time = Instant::now();
@@ -143,16 +157,63 @@ fn show_loading_animation(message: &str, duration: Duration) -> thread::JoinHand
     })
 }
 
-fn get_target_ip() -> Result<IpAddr> {
-    let target_ip: IpAddr = Input::with_theme(&ColorfulTheme::default())
-        .with_prompt("Enter the target IP address")
-        .validate_with(|input: &String| -> Result<(), String> {
-            match IpAddr::from_str(input) {
-                Ok(_) => Ok(()),
-                Err(_) => Err("Invalid IP address format. Please try again.".to_string()),
-            }
-        })
-        .interact_text().unwrap().parse()?;
+fn get_target_machines() -> Result<Vec<Machine>> {
+    let mut machines = Vec::new();
 
-    Ok(target_ip)
+    loop {
+        let ip_address: IpAddr = Input::with_theme(&ColorfulTheme::default())
+            .with_prompt("Enter a target IP address (or leave empty to finish)")
+            .allow_empty(true)
+            .validate_with(|input: &String| -> Result<(), String> {
+                if input.is_empty() {
+                    return Ok(());
+                }
+                match IpAddr::from_str(input) {
+                    Ok(_) => Ok(()),
+                    Err(_) => Err("Invalid IP address format. Please try again.".to_string()),
+                }
+            })
+            .interact_text()?;
+
+        if ip_address.to_string().is_empty() {
+            break;
+        }
+
+        let ports = get_port_specification()?;
+        machines.push(Machine { ip_address, ports: Vec::new() });
+    }
+
+    if machines.is_empty() {
+        return Err(anyhow!("No target machines specified"));
+    }
+
+    Ok(machines)
+}
+
+fn get_port_specification() -> Result<Vec<u16>> {
+    let port_spec: String = Input::with_theme(&ColorfulTheme::default())
+        .with_prompt("Enter port specification (e.g., '80,443,8000-8100' or leave empty for all ports)")
+        .allow_empty(true)
+        .interact_text()?;
+
+    if port_spec.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let mut ports = Vec::new();
+    for part in port_spec.split(',') {
+        if part.contains('-') {
+            let range: Vec<&str> = part.split('-').collect();
+            if range.len() != 2 {
+                return Err(anyhow!("Invalid port range specification"));
+            }
+            let start: u16 = range[0].parse()?;
+            let end: u16 = range[1].parse()?;
+            ports.extend(start..=end);
+        } else {
+            ports.push(part.parse()?);
+        }
+    }
+
+    Ok(ports)
 }
