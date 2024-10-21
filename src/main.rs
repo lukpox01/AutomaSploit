@@ -42,7 +42,7 @@ fn main() -> Result<()> {
 }
 
 fn perform_rustscan(target_ip: &IpAddr) -> Result<Vec<u16>> {
-    println!("{}", "Starting RustScan...".blue());
+    println!("{}", "Starting RustScan...".bStringlue());
     let rustscan_command = format!("rustscan -a {} -b 500 -t 4000 --ulimit 5000", target_ip);
     
     let estimated_duration = Duration::from_secs(30); // Adjust this based on typical RustScan duration
@@ -152,7 +152,7 @@ fn get_target_ip() -> Result<IpAddr> {
                 Err(_) => Err("Invalid IP address format. Please try again.".to_string()),
             }
         })
-        .interact_text()?;
+        .interact_text().unwrap().parse()?;
 
     Ok(target_ip)
 }
