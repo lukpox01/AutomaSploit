@@ -62,12 +62,7 @@ fn perform_rustscan(target_ip: &IpAddr, specified_ports: &[u16]) -> Result<Vec<u
     
     let rustscan_command = format!("rustscan -a {} {} -b 500 -t 4000 --ulimit 5000", target_ip, ports_arg);
     
-    let estimated_duration = if specified_ports.is_empty() {
-        Duration::from_secs(120) // Estimate for full port scan
-    } else {
-        Duration::from_secs(30 + (specified_ports.len() as u64 * 2))
-    };
-    let loading_thread = show_loading_animation("Performing RustScan", estimated_duration);
+    let loading_thread = show_loading_animation("Performing RustScan", Duration::from_secs(3600)); // 1 hour timeout
     
     let start_time = Instant::now();
     let rustscan_output = Command::new("sh")
@@ -106,8 +101,7 @@ fn perform_nmap_scan(target_ip: &IpAddr, open_ports: &[u16]) -> Result<Vec<Port>
     let nmap_command = format!("nmap -T4 -sV -sC -p {} {}", ports, target_ip);
     println!("{} {}", "Executing Nmap command:".blue(), nmap_command);
 
-    let estimated_duration = Duration::from_secs(30 + (open_ports.len() as u64 * 60)); // Base 30 seconds + 1 minute per port
-    let loading_thread = show_loading_animation("Performing Nmap scan", estimated_duration);
+    let loading_thread = show_loading_animation("Performing Nmap scan", Duration::from_secs(3600)); // 1 hour timeout
 
     let start_time = Instant::now();
     let nmap_output = Command::new("sh")
@@ -161,9 +155,7 @@ fn show_loading_animation(message: &str, duration: Duration) -> thread::JoinHand
     thread::spawn(move || {
         let start = Instant::now();
         while start.elapsed() < duration {
-            let remaining = duration.saturating_sub(start.elapsed());
-            pb.set_message(format!("{} (Estimated time remaining: {:02}:{:02})", 
-                message, remaining.as_secs() / 60, remaining.as_secs() % 60));
+            pb.set_message(&message);
             pb.tick();
             thread::sleep(Duration::from_millis(100));
         }
