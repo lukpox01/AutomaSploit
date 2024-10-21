@@ -4,6 +4,9 @@ use colored::*;
 use std::net::IpAddr;
 use std::process::Command;
 use std::str::FromStr;
+use std::time::{Duration, Instant};
+use std::thread;
+use indicatif::{ProgressBar, ProgressStyle};
 
 #[derive(Debug, Clone)]
 struct Port {
@@ -50,10 +53,20 @@ fn main() -> Result<()> {
 fn perform_rustscan(target_ip: &IpAddr) -> Result<Vec<u16>> {
     println!("{}", "Starting RustScan...".blue());
     let rustscan_command = format!("rustscan -a {} -b 500 -t 4000 --ulimit 5000", target_ip);
+    
+    let estimated_duration = Duration::from_secs(30); // Adjust this based on typical RustScan duration
+    let loading_thread = show_loading_animation("Performing RustScan", estimated_duration);
+    
+    let start_time = Instant::now();
     let rustscan_output = Command::new("sh")
         .arg("-c")
         .arg(&rustscan_command)
         .output()?;
+    let elapsed_time = start_time.elapsed();
+
+    loading_thread.join().unwrap();
+
+    println!("{} {:.2?}", "RustScan completed in".blue(), elapsed_time);
 
     let rustscan_result = String::from_utf8_lossy(&rustscan_output.stdout);
 
@@ -78,10 +91,19 @@ fn perform_nmap_scan(target_ip: &IpAddr, open_ports: &[u16]) -> Result<Vec<Port>
     let nmap_command = format!("nmap -sV -sC -p {} {}", ports, target_ip);
     println!("{} {}", "Executing Nmap command:".blue(), nmap_command);
 
+    let estimated_duration = Duration::from_secs(60 * open_ports.len() as u64); // Rough estimate: 1 minute per port
+    let loading_thread = show_loading_animation("Performing Nmap scan", estimated_duration);
+
+    let start_time = Instant::now();
     let nmap_output = Command::new("sh")
         .arg("-c")
         .arg(&nmap_command)
         .output()?;
+    let elapsed_time = start_time.elapsed();
+
+    loading_thread.join().unwrap();
+
+    println!("{} {:.2?}", "Nmap scan completed in".blue(), elapsed_time);
 
     let mut ports: Vec<Port> = Vec::new();
     let nmap_result = String::from_utf8_lossy(&nmap_output.stdout);
@@ -110,4 +132,22 @@ fn print_port(port: &Port) {
     println!("{}: {}", "Protocol".cyan().bold(), port.protocol.yellow());
     println!("{}: {}", "Service".cyan().bold(), port.service.yellow());
     println!("{}: {}", "Version".cyan().bold(), port.version.yellow());
+}
+
+fn show_loading_animation(message: &str, duration: Duration) -> thread::JoinHandle<()> {
+    let pb = ProgressBar::new_spinner();
+    pb.set_style(ProgressStyle::default_spinner()
+        .tick_chars("⠁⠂⠄⡀⢀⠠⠐⠈ ")
+        .template("{spinner:.blue} {msg}")
+        .unwrap());
+    pb.set_message(message.to_string());
+
+    thread::spawn(move || {
+        let start = Instant::now();
+        while start.elapsed() < duration {
+            pb.tick();
+            thread::sleep(Duration::from_millis(100));
+        }
+        pb.finish_with_message("Done");
+    })
 }
