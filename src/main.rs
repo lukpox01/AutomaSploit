@@ -24,10 +24,14 @@ fn main() -> Result<()> {
     println!("RustScan results:\n{}", rustscan_result);
 
     // Extract open ports from RustScan results
-    let open_ports: Vec<&str> = rustscan_result
+    let open_ports: Vec<u16> = rustscan_result
         .lines()
         .filter(|line| line.contains("Open"))
-        .flat_map(|line| line.split_whitespace().nth(0))
+        .filter_map(|line| {
+            line.split_whitespace()
+                .next()
+                .and_then(|s| s.parse().ok())
+        })
         .collect();
 
     if open_ports.is_empty() {
@@ -39,8 +43,8 @@ fn main() -> Result<()> {
 
     // Perform Nmap scan on open ports
     println!("Starting Nmap vulnerability scan...");
-    let ports = open_ports.join(",");
-    let nmap_command = format!("nmap -p {} {}", ports, target_ip);
+    let ports = open_ports.iter().map(|p| p.to_string()).collect::<Vec<String>>().join(",");
+    let nmap_command = format!("nmap -sV -sC -p {} {}", ports, target_ip);
 
     let nmap_output = Command::new("sh")
         .arg("-c")
