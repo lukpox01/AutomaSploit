@@ -53,7 +53,7 @@ async fn main() -> Result<()> {
         // Analyze ports with OpenAI
         println!("\n{}", "Analyzing ports with OpenAI...".cyan().bold());
         match analyze_ports_with_openai(&ports).await {
-            Ok(analysis) => println!("{}\n{}", "OpenAI Analysis:".green().bold(), analysis),
+            Ok(analysis) => print_openai_analysis(&analysis),
             Err(e) => println!("{} {}", "Failed to analyze ports:".red().bold(), e),
         }
     }
@@ -309,7 +309,7 @@ fn get_port_specification() -> Result<Vec<u16>> {
 
     Ok(ports)
 }
-async fn analyze_ports_with_openai(ports: &[Port]) -> Result<String> {
+async fn analyze_ports_with_openai(ports: &[Port]) -> Result<Vec<String>> {
     let api_key = std::env::var("OPENAI_API_KEY").expect("OPENAI_API_KEY not set");
     let client = Client::new();
 
@@ -320,7 +320,7 @@ async fn analyze_ports_with_openai(ports: &[Port]) -> Result<String> {
         .join("\n");
 
     let prompt = format!(
-        "Analyze the following ports for potential vulnerabilities and outdated versions:\n\n{}\n\nProvide a detailed analysis of potential security risks and recommendations:",
+        "Analyze the following ports for potential vulnerabilities and outdated versions:\n\n{}\n\nProvide a detailed analysis of potential security risks and recommendations. Format your response in these sections: 'Vulnerabilities', 'Outdated Versions', and 'Recommendations'. Use '-' for bullet points.",
         ports_info
     );
 
@@ -346,5 +346,29 @@ async fn analyze_ports_with_openai(ports: &[Port]) -> Result<String> {
         .ok_or_else(|| anyhow!("Failed to get response content"))?
         .to_string();
 
-    Ok(analysis)
+    Ok(analysis.lines().map(|s| s.to_string()).collect())
+}
+
+fn print_openai_analysis(analysis: &[String]) {
+    println!("\n{}", "OpenAI Analysis:".green().bold());
+    println!("{}", "═".repeat(50).cyan());
+
+    let mut current_section = "";
+    for line in analysis {
+        if line.ends_with(':') {
+            current_section = line.trim_end_matches(':');
+            println!("\n{}", line.yellow().bold());
+        } else if line.starts_with('-') {
+            match current_section {
+                "Vulnerabilities" => println!("{}", line.red()),
+                "Outdated Versions" => println!("{}", line.yellow()),
+                "Recommendations" => println!("{}", line.green()),
+                _ => println!("{}", line),
+            }
+        } else {
+            println!("{}", line);
+        }
+    }
+
+    println!("{}", "═".repeat(50).cyan());
 }
