@@ -4,6 +4,8 @@ use dialoguer::{theme::ColorfulTheme, Input, MultiSelect};
 use indicatif::{ProgressBar, ProgressStyle};
 use reqwest::Client;
 use serde_json::json;
+use termimad::crossterm::style::Color::{Green, Red, Yellow};
+use termimad::{MadSkin, StyledChar};
 use std::net::IpAddr;
 use std::process::Command;
 use std::str::FromStr;
@@ -350,25 +352,31 @@ async fn analyze_ports_with_openai(ports: &[Port]) -> Result<Vec<String>> {
 }
 
 fn print_openai_analysis(analysis: &[String]) {
-    println!("\n{}", "OpenAI Analysis:".green().bold());
-    println!("{}", "═".repeat(50).cyan());
+    let mut skin = MadSkin::default();
+    skin.set_headers_fg(Yellow);
+    skin.bold.set_fg(Yellow);
+    skin.italic.set_fg(Green);
+    skin.bullet = StyledChar::from_fg_char(Yellow, '•');
 
-    let mut current_section = "";
+    let mut markdown = String::new();
+    markdown.push_str("# OpenAI Analysis\n\n");
+
     for line in analysis {
         if line.ends_with(':') {
-            current_section = line.trim_end_matches(':');
-            println!("\n{}", line.yellow().bold());
+            markdown.push_str(&format!("## {}\n", line));
         } else if line.starts_with('-') {
-            match current_section {
-                "Vulnerabilities" => println!("{}", line.red()),
-                "Outdated Versions" => println!("{}", line.yellow()),
-                "Recommendations" => println!("{}", line.green()),
-                _ => println!("{}", line),
-            }
+            markdown.push_str(&format!("{}\n", line));
         } else {
-            println!("{}", line);
+            markdown.push_str(&format!("{}\n", line));
         }
     }
 
-    println!("{}", "═".repeat(50).cyan());
+    // Replace "Vulnerabilities:" with red text
+    markdown = markdown.replace("## Vulnerabilities:", "## <red>Vulnerabilities:</red>");
+    // Replace "Outdated Versions:" with yellow text
+    markdown = markdown.replace("## Outdated Versions:", "## <yellow>Outdated Versions:</yellow>");
+    // Replace "Recommendations:" with green text
+    markdown = markdown.replace("## Recommendations:", "## <green>Recommendations:</green>");
+
+    skin.print_text(&markdown);
 }
