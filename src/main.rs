@@ -2,6 +2,8 @@ use anyhow::{anyhow, Result};
 use colored::*;
 use dialoguer::{theme::ColorfulTheme, Input, MultiSelect};
 use indicatif::{ProgressBar, ProgressStyle};
+use reqwest::Client;
+use serde_json::json;
 use std::net::IpAddr;
 use std::process::Command;
 use std::str::FromStr;
@@ -22,7 +24,8 @@ struct Machine {
     ports: Vec<Port>,
 }
 
-fn main() -> Result<()> {
+#[tokio::main]
+async fn main() -> Result<()> {
     println!("{}", "Starting AutomaSploit...".green().bold());
 
     let targets = get_target_machines()?;
@@ -43,8 +46,15 @@ fn main() -> Result<()> {
 
         // Print results
         println!("\n{}", "Scan results:".cyan().bold());
-        for port in ports {
-            print_port(&port);
+        for port in &ports {
+            print_port(port);
+        }
+
+        // Analyze ports with OpenAI
+        println!("\n{}", "Analyzing ports with OpenAI...".cyan().bold());
+        match analyze_ports_with_openai(&ports).await {
+            Ok(analysis) => println!("{}\n{}", "OpenAI Analysis:".green().bold(), analysis),
+            Err(e) => println!("{} {}", "Failed to analyze ports:".red().bold(), e),
         }
     }
 
@@ -298,4 +308,43 @@ fn get_port_specification() -> Result<Vec<u16>> {
     }
 
     Ok(ports)
+}
+async fn analyze_ports_with_openai(ports: &[Port]) -> Result<String> {
+    let api_key = std::env::var("OPENAI_API_KEY").expect("OPENAI_API_KEY not set");
+    let client = Client::new();
+
+    let ports_info = ports
+        .iter()
+        .map(|p| format!("Port {}: {} {} ({})", p.number, p.service, p.protocol, p.version))
+        .collect::<Vec<String>>()
+        .join("\n");
+
+    let prompt = format!(
+        "Analyze the following ports for potential vulnerabilities and outdated versions:\n\n{}\n\nProvide a detailed analysis of potential security risks and recommendations:",
+        ports_info
+    );
+
+    let response = client
+        .post("https://api.openai.com/v1/chat/completions")
+        .header("Authorization", format!("Bearer {}", api_key))
+        .json(&json!({
+            "model": "gpt-3.5-turbo",
+            "messages": [
+                {"role": "system", "content": "You are a cybersecurity expert analyzing port scan results."},
+                {"role": "user", "content": prompt}
+            ],
+            "temperature": 0.7,
+            "max_tokens": 1000
+        }))
+        .send()
+        .await?
+        .json::<serde_json::Value>()
+        .await?;
+
+    let analysis = response["choices"][0]["message"]["content"]
+        .as_str()
+        .ok_or_else(|| anyhow!("Failed to get response content"))?
+        .to_string();
+
+    Ok(analysis)
 }
