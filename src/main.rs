@@ -193,9 +193,10 @@ fn perform_nmap_scan(target_ip: &IpAddr, open_ports: &[u16]) -> Result<Vec<Port>
 
     if ports.is_empty() {
         println!("{}", "No open ports found by Nmap.".yellow());
-    } else {
-        println!("{} {:?}", "Open ports found by Nmap:".blue(), ports);
-    }
+    } 
+    // else {
+    //     println!("{} {:?}", "Open ports found by Nmap:".blue(), ports);
+    // }
 
     Ok(ports)
 }
