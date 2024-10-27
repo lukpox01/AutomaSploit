@@ -12,6 +12,7 @@ use std::str::FromStr;
 use std::thread;
 use std::time::{Duration, Instant};
 
+
 #[derive(Debug, Clone)]
 struct Port {
     number: u16,
