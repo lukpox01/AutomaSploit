@@ -373,12 +373,20 @@ async fn analyze_ports_with_ollama(ports: &[Port]) -> Result<Vec<String>> {
 
     let prompt = format!(
         "As a cybersecurity expert, analyze these ports for vulnerabilities:\n\n{}\n\n\
-        Provide a detailed security analysis covering:\n\
-        1. Potential vulnerabilities in these services\n\
-        2. Version-specific security concerns\n\
-        3. Hardening recommendations\n\
-        4. Best practices for securing these services\n\
-        Format with markdown headers and bullet points.",
+        For each port, provide analysis in this exact format:\n\n\
+        # Port [number]\n\
+        ## Service Details\n\
+        - Service: [service name]\n\
+        - Version: [version info]\n\
+        - Protocol: [protocol]\n\n\
+        ## Known Vulnerabilities\n\
+        - [list specific CVEs or known vulnerabilities]\n\n\
+        ## Version Analysis\n\
+        - [analysis of version-specific issues]\n\n\
+        ## Security Recommendations\n\
+        - [specific hardening steps]\n\n\
+        Keep responses concise and focus on actionable security findings.\
+        Use markdown formatting consistently.",
         ports_info
     );
 
