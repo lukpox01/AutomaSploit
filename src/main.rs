@@ -379,52 +379,14 @@ async fn analyze_ports_with_ollama(ports: &[Port]) -> Result<Vec<String>> {
         "hf.co/bartowski/Llama-3.1-WhiteRabbitNeo-2-8B-GGUF:IQ4_XS".to_string(),
         prompt,
     )
-    .temperature(0.7)
-    .max_tokens(1000);
+    .system("");
 
     let response = ollama.generate(request).await?;
     let analysis = response.response;
 
     Ok(analysis.lines().map(|s| s.to_string()).collect())
 }
-    let api_key = std::env::var("OPENAI_API_KEY").expect("OPENAI_API_KEY not set");
-    let client = Client::new();
-
-    let ports_info = ports
-        .iter()
-        .map(|p| format!("Port {}: {} {} ({})", p.number, p.service, p.protocol, p.version))
-        .collect::<Vec<String>>()
-        .join("\n");
-
-    let prompt = format!(
-        "Analyze the following ports for potential vulnerabilities and outdated versions:\n\n{}\n\nProvide a detailed analysis of potential security risks and recommendations. Format your response in these sections: 'Vulnerabilities', 'Outdated Versions', and 'Recommendations'. Use '-' for bullet points.",
-        ports_info
-    );
-
-    let response = client
-        .post("https://api.openai.com/v1/chat/completions")
-        .header("Authorization", format!("Bearer {}", api_key))
-        .json(&json!({
-            "model": "gpt-3.5-turbo",
-            "messages": [
-                {"role": "system", "content": "You are a cybersecurity expert analyzing port scan results."},
-                {"role": "user", "content": prompt}
-            ],
-            "temperature": 0.7,
-            "max_tokens": 1000
-        }))
-        .send()
-        .await?
-        .json::<serde_json::Value>()
-        .await?;
-
-    let analysis = response["choices"][0]["message"]["content"]
-        .as_str()
-        .ok_or_else(|| anyhow!("Failed to get response content"))?
-        .to_string();
-
-    Ok(analysis.lines().map(|s| s.to_string()).collect())
-}
+    
 
 fn print_openai_analysis(analysis: &[String]) {
     let mut skin = MadSkin::default();
