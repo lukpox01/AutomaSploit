@@ -57,7 +57,14 @@ async fn main() -> Result<()> {
         println!("\n{}", "Analyzing ports with OpenAI...".cyan().bold());
         match analyze_ports_with_openai(&ports).await {
             Ok(analysis) => print_openai_analysis(&analysis),
-            Err(e) => println!("{} {}", "Failed to analyze ports:".red().bold(), e),
+            Err(e) => println!("{} {}", "Failed to analyze ports with OpenAI:".red().bold(), e),
+        }
+
+        // Analyze ports with Ollama
+        println!("\n{}", "Analyzing ports with Ollama...".cyan().bold());
+        match analyze_ports_with_ollama(&ports).await {
+            Ok(analysis) => print_ollama_analysis(&analysis),
+            Err(e) => println!("{} {}", "Failed to analyze ports with Ollama:".red().bold(), e),
         }
     }
 
