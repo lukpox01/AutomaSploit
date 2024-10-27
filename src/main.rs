@@ -388,6 +388,20 @@ async fn analyze_ports_with_ollama(ports: &[Port]) -> Result<Vec<String>> {
 }
     
 
+fn print_ollama_analysis(analysis: &[String]) {
+    let mut skin = MadSkin::default();
+    skin.set_headers_fg(Yellow);
+    skin.bold.set_fg(Yellow);
+    skin.italic.set_fg(Green);
+    skin.bullet = StyledChar::from_fg_char(Yellow, '•');
+
+    let mut markdown = String::new();
+    markdown.push_str("# Ollama Analysis\n\n");
+    markdown.push_str(&analysis.join("\n"));
+
+    skin.print_text(&markdown);
+}
+
 fn print_openai_analysis(analysis: &[String]) {
     let mut skin = MadSkin::default();
     skin.set_headers_fg(Yellow);
