@@ -18,9 +18,5 @@ termimad = "0.20"
 chrono = "0.4.38"
 pcap = "2.2.0"
 pktparse = "0.7.1"
-
-
-
-
-
+ollama-rs = "0.1.6"
 
