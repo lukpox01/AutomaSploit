@@ -379,7 +379,7 @@ async fn analyze_ports_with_ollama(ports: &[Port]) -> Result<Vec<String>> {
         "hf.co/bartowski/Llama-3.1-WhiteRabbitNeo-2-8B-GGUF:IQ4_XS".to_string(),
         prompt,
     )
-    .system("");
+    .system("You are an expert cybersecurity analyst specializing in network security and penetration testing. Your task is to analyze port scan results and identify potential security vulnerabilities, outdated services, and provide detailed recommendations for hardening. Format your response in clear markdown with headers and bullet points. Focus on practical, actionable security advice and current best practices for securing network services.");
 
     let response = ollama.generate(request).await?;
     let analysis = response.response;
