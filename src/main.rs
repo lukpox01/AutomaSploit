@@ -1,3 +1,7 @@
+mod vulnerabilities;
+
+use vulnerabilities::{Vulnerability, VulnerabilityCheck};
+
 use anyhow::{anyhow, Result};
 use colored::*;
 use dialoguer::{theme::ColorfulTheme, Input, MultiSelect};
@@ -12,6 +16,305 @@ use std::str::FromStr;
 use std::thread;
 use std::time::{Duration, Instant};
 
+use std::fs::File;
+use std::io::Write;
+use std::path::Path;
+use chrono::Local;
+
+impl Machine {
+    pub fn generate_text_report(&self) -> Result<String> {
+        let mut report = String::new();
+        let timestamp = Local::now().format("%Y-%m-%d %H:%M:%S");
+        
+        report.push_str(&format!("Security Analysis Report for {}\n", self.ip_address));
+        report.push_str(&format!("Generated at: {}\n", timestamp));
+        report.push_str(&"=".repeat(50));
+        report.push_str("\n\n");
+
+        for port in &self.ports {
+            report.push_str(&format!("Port {}: {} ({})\n", port.number, port.service, port.protocol));
+            report.push_str(&format!("Version: {}\n", port.version));
+            
+            let vulns = port.check_vulnerabilities();
+            if !vulns.is_empty() {
+                report.push_str("\nVulnerabilities Found:\n");
+                for vuln in vulns {
+                    report.push_str(&format!("\n- {}\n", vuln.name));
+                    report.push_str(&format!("  Severity: {}\n", vuln.severity));
+                    if let Some(cve) = vuln.cve {
+                        report.push_str(&format!("  CVE: {}\n", cve));
+                    }
+                    report.push_str(&format!("  Description: {}\n", vuln.description));
+                }
+            }
+            report.push_str("\n");
+            report.push_str(&"-".repeat(50));
+            report.push_str("\n\n");
+        }
+
+        Ok(report)
+    }
+
+    pub fn generate_html_report(&self) -> Result<String> {
+        let timestamp = Local::now().format("%Y-%m-%d %H:%M:%S");
+        let mut html = String::new();
+
+        // Updated HTML header and styling
+        html.push_str(r#"<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Security Analysis Report</title>
+    <style>
+        :root {
+            --primary-color: #2c3e50;
+            --danger-color: #e74c3c;
+            --warning-color: #f39c12;
+            --success-color: #27ae60;
+            --info-color: #3498db;
+            --background-color: #ecf0f1;
+            --card-background: #ffffff;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: var(--background-color);
+            color: var(--primary-color);
+        }
+        
+        .container {
+            background-color: var(--card-background);
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        
+        .header {
+            border-bottom: 3px solid var(--primary-color);
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .header h1 {
+            color: var(--primary-color);
+            margin: 0;
+            font-size: 2.2em;
+        }
+        
+        .header p {
+            color: #666;
+            margin: 10px 0 0 0;
+            font-size: 1.1em;
+        }
+        
+        .port-section {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            background-color: #fafafa;
+            transition: all 0.3s ease;
+        }
+        
+        .port-section:hover {
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            transform: translateY(-2px);
+        }
+        
+        .port-section h2 {
+            color: var(--info-color);
+            border-bottom: 2px solid var(--info-color);
+            padding-bottom: 8px;
+            margin-top: 0;
+        }
+        
+        .vulnerability {
+            margin: 15px 0;
+            padding: 15px;
+            background-color: #fff;
+            border-radius: 6px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        
+        .vulnerability h4 {
+            margin: 0 0 10px 0;
+            color: var(--danger-color);
+        }
+        
+        .severity-critical {
+            border-left: 5px solid #dc3545;
+            background-color: #fff5f5;
+        }
+        
+        .severity-high {
+            border-left: 5px solid #fd7e14;
+            background-color: #fff9f0;
+        }
+        
+        .severity-medium {
+            border-left: 5px solid #ffc107;
+            background-color: #fffbeb;
+        }
+        
+        .severity-low {
+            border-left: 5px solid #28a745;
+            background-color: #f0fff4;
+        }
+        
+        .service-details {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 15px 0;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-radius: 6px;
+        }
+        
+        .service-detail {
+            padding: 10px;
+        }
+        
+        .service-detail strong {
+            color: var(--primary-color);
+            display: block;
+            margin-bottom: 5px;
+        }
+        
+        .vulnerability-list {
+            margin-top: 20px;
+        }
+        
+        .vulnerability-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.9em;
+            font-weight: bold;
+            margin-right: 8px;
+        }
+        
+        .badge-critical { background-color: #dc3545; color: white; }
+        .badge-high { background-color: #fd7e14; color: white; }
+        .badge-medium { background-color: #ffc107; color: black; }
+        .badge-low { background-color: #28a745; color: white; }
+    </style>
+</head>
+<body>
+<div class="container">"#);
+
+        // Report header
+        html.push_str(&format!(r#"
+    <div class="header">
+        <h1>Security Analysis Report for {}</h1>
+        <p>Generated at: {}</p>
+    </div>"#, self.ip_address, timestamp));
+
+        // Port sections
+        for port in &self.ports {
+            html.push_str(&format!(r#"
+    <div class="port-section">
+        <h2>Port {}: {} ({})</h2>
+        <div class="service-details">
+            <div class="service-detail">
+                <strong>Port Number:</strong>
+                <span>{}</span>
+            </div>
+            <div class="service-detail">
+                <strong>Service:</strong>
+                <span>{}</span>
+            </div>
+            <div class="service-detail">
+                <strong>Protocol:</strong>
+                <span>{}</span>
+            </div>
+            <div class="service-detail">
+                <strong>Version:</strong>
+                <span>{}</span>
+            </div>
+        </div>"#,
+                port.number, port.service, port.protocol,
+                port.number, port.service, port.protocol, port.version));
+
+            let vulns = port.check_vulnerabilities();
+            if !vulns.is_empty() {
+                html.push_str("\n        <div class=\"vulnerability-list\">\n");
+                html.push_str("            <h3>Vulnerabilities Found:</h3>");
+                for vuln in vulns {
+                    let severity_class = match vuln.severity.to_lowercase().as_str() {
+                        "critical" => "severity-critical",
+                        "high" => "severity-high",
+                        "medium" => "severity-medium",
+                        _ => "severity-low",
+                    };
+                    
+                    let badge_class = match vuln.severity.to_lowercase().as_str() {
+                        "critical" => "badge-critical",
+                        "high" => "badge-high",
+                        "medium" => "badge-medium",
+                        _ => "badge-low",
+                    };
+
+                    html.push_str(&format!(r#"
+            <div class="vulnerability {}">
+                <h4>{}</h4>
+                <span class="vulnerability-badge {}">{}</span>
+                {}"#,
+                        severity_class, 
+                        vuln.name,
+                        badge_class,
+                        vuln.severity,
+                        if let Some(cve) = vuln.cve {
+                            format!("<span class=\"vulnerability-badge badge-high\">{}</span>", cve)
+                        } else {
+                            String::new()
+                        }
+                    ));
+                    
+                    html.push_str(&format!(r#"
+                <p>{}</p>
+            </div>"#, vuln.description));
+                }
+                html.push_str("\n        </div>");
+            }
+            
+            html.push_str("\n    </div>");
+        }
+
+        // HTML footer
+        html.push_str(r#"
+</div>
+</body>
+</html>"#);
+
+        Ok(html)
+    }
+
+    pub fn save_report(&self, format: ReportFormat, output_path: &str) -> Result<()> {
+        let content = match format {
+            ReportFormat::Text => self.generate_text_report()?,
+            ReportFormat::HTML => self.generate_html_report()?,
+        };
+
+        let path = Path::new(output_path);
+        let mut file = File::create(path)?;
+        file.write_all(content.as_bytes())?;
+
+        println!("{} Report saved to: {}", "✔".green(), output_path);
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum ReportFormat {
+    Text,
+    HTML,
+}
 
 #[derive(Debug, Clone)]
 struct Port {
@@ -26,6 +329,8 @@ struct Machine {
     ip_address: IpAddr,
     ports: Vec<Port>,
 }
+
+
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -47,25 +352,27 @@ async fn main() -> Result<()> {
         // Perform Nmap scan on open ports
         let ports = perform_nmap_scan(&ip_address, &open_ports)?;
 
+        // Create Machine instance
+        let machine = Machine {
+            ip_address,
+            ports,
+        };
+
         // Print results
         println!("\n{}", "Scan results:".cyan().bold());
-        for port in &ports {
+        for port in &machine.ports {
             print_port(port);
         }
 
-        // Analyze ports with OpenAI
-        // println!("\n{}", "Analyzing ports with OpenAI...".cyan().bold());
-        // match analyze_ports_with_openai(&ports).await {
-        //     Ok(analysis) => print_openai_analysis(&analysis),
-        //     Err(e) => println!("{} {}", "Failed to analyze ports with OpenAI:".red().bold(), e),
-        // }
-
-        // Analyze ports with Ollama
-        println!("\n{}", "Analyzing ports with Ollama...".cyan().bold());
-        match analyze_ports_with_ollama(&ports).await {
-            Ok(analysis) => print_ollama_analysis(&analysis),
-            Err(e) => println!("{} {}", "Failed to analyze ports with Ollama:".red().bold(), e),
+        // Save reports
+        if let Err(e) = machine.save_report(ReportFormat::Text, &format!("report_{}.txt", ip_address)) {
+            println!("{} {}", "Failed to save text report:".red().bold(), e);
         }
+        if let Err(e) = machine.save_report(ReportFormat::HTML, &format!("report_{}.html", ip_address)) {
+            println!("{} {}", "Failed to save HTML report:".red().bold(), e);
+        }
+
+        // ...existing OpenAI and Ollama analysis code...
     }
 
     Ok(())
@@ -231,6 +538,18 @@ fn print_port(port: &Port) {
     println!("{}: {}", "Protocol".cyan().bold(), port.protocol.yellow());
     println!("{}: {}", "Service".cyan().bold(), port.service.yellow());
     println!("{}: {}", "Version".cyan().bold(), port.version.yellow());
+    
+    let vulns = port.check_vulnerabilities();
+    if !vulns.is_empty() {
+        println!("\n{}", "Known Vulnerabilities:".red().bold());
+        for vuln in vulns {
+            println!("  {} ({})", vuln.name.red(), vuln.severity.yellow());
+            if let Some(cve) = vuln.cve {
+                println!("  CVE: {}", cve.red());
+            }
+            println!("  Description: {}", vuln.description);
+        }
+    }
 }
 
 use std::sync::atomic::{AtomicBool, Ordering};
