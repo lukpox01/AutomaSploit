@@ -1,0 +1,7 @@
+Starting AutomaSploit...
+✔ Enter a target IP address (or leave empty to finish) · 10.3.4.9
+✔ Enter port specification (e.g., '80,443,8000-8100' or leave empty for all ports) · 1-455
+✔ Enter a target IP address (or leave empty to finish) · 
+
+Scanning machine: 10.3.4.9
+Starting RustScan...
